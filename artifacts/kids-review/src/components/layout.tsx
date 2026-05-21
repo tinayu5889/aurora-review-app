@@ -4,12 +4,12 @@ import { Calendar, Home, PlusCircle, Book, ClipboardList, TrendingUp } from "luc
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/add", label: "新增", icon: PlusCircle },
-  { href: "/calendar", label: "月曆", icon: Calendar },
-  { href: "/history", label: "歷程", icon: ClipboardList },
-  { href: "/", label: "今日複習", icon: Home },
-  { href: "/subjects", label: "科目", icon: Book },
-  { href: "/weekly", label: "本週報告", icon: TrendingUp },
+  { href: "/", label: "今日複習", icon: Home, small: false },
+  { href: "/add", label: "新增學習", icon: PlusCircle, small: false },
+  { href: "/calendar", label: "月曆", icon: Calendar, small: false },
+  { href: "/history", label: "歷程", icon: ClipboardList, small: false },
+  { href: "/subjects", label: "科目", icon: Book, small: false },
+  { href: "/weekly", label: "本週報告", icon: TrendingUp, small: true },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -36,14 +36,24 @@ export function Layout({ children }: { children: ReactNode }) {
                     )}
                     <Icon
                       className={cn(
-                        "w-5 h-5 transition-all duration-300",
-                        isActive ? "text-primary scale-110" : "text-muted-foreground"
+                        "transition-all duration-300",
+                        item.small ? "w-4 h-4" : "w-5 h-5",
+                        isActive
+                          ? "text-primary scale-110"
+                          : item.small
+                          ? "text-muted-foreground/50"
+                          : "text-muted-foreground"
                       )}
                     />
                     <span
                       className={cn(
-                        "text-[9px] font-bold transition-all duration-300",
-                        isActive ? "text-primary" : "text-muted-foreground"
+                        "font-bold transition-all duration-300",
+                        item.small ? "text-[8px]" : "text-[9px]",
+                        isActive
+                          ? "text-primary"
+                          : item.small
+                          ? "text-muted-foreground/50"
+                          : "text-muted-foreground"
                       )}
                     >
                       {item.label}
