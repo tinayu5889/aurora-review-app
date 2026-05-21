@@ -151,7 +151,7 @@ export default function Subjects() {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-2.5">
           <AnimatePresence>
             {subjects.map((subject, index) => (
               <motion.div
@@ -159,29 +159,29 @@ export default function Subjects() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: index * 0.04 }}
                 className={cn(
-                  "relative p-5 rounded-[32px] aspect-square flex flex-col items-center justify-center text-center group transition-transform active:scale-95 shadow-sm border-4 border-transparent hover:border-white/20",
+                  "relative p-3 rounded-[20px] aspect-square flex flex-col items-center justify-center text-center group transition-transform active:scale-95 shadow-sm border-2 border-transparent hover:border-white/20",
                   subject.color
                 )}
               >
-                <div className="absolute top-3 right-3 flex opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
+                <div className="absolute top-1.5 right-1.5 flex opacity-40 group-hover:opacity-100 transition-opacity">
+                  <button
                     onClick={() => handleOpenEdit(subject)}
-                    className="w-9 h-9 rounded-full bg-white/30 hover:bg-white/50 flex items-center justify-center text-white backdrop-blur-sm mr-1 transition-colors"
+                    className="w-7 h-7 rounded-full bg-white/40 hover:bg-white/60 flex items-center justify-center text-white backdrop-blur-sm mr-0.5 transition-colors"
                   >
-                    <Edit className="w-4 h-4" />
+                    <Edit className="w-3 h-3" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDelete(subject.id)}
-                    className="w-9 h-9 rounded-full bg-white/30 hover:bg-red-500/80 flex items-center justify-center text-white backdrop-blur-sm transition-colors"
+                    className="w-7 h-7 rounded-full bg-white/40 hover:bg-red-500/80 flex items-center justify-center text-white backdrop-blur-sm transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
-                
-                <span className="text-6xl mb-4 drop-shadow-md">{subject.emoji}</span>
-                <span className="font-bold text-white text-xl px-2 drop-shadow-sm line-clamp-2 leading-tight">
+
+                <span className="text-4xl mb-2 drop-shadow-md">{subject.emoji}</span>
+                <span className="font-bold text-white text-[13px] px-1 drop-shadow-sm line-clamp-2 leading-tight">
                   {subject.name}
                 </span>
               </motion.div>
@@ -189,12 +189,12 @@ export default function Subjects() {
           </AnimatePresence>
 
           {subjects.length === 0 && (
-             <div className="col-span-2 text-center py-12">
-               <div className="w-24 h-24 bg-muted rounded-[32px] rotate-12 flex items-center justify-center mx-auto mb-6 shadow-sm">
-                 <Book className="w-12 h-12 text-muted-foreground -rotate-12" />
-               </div>
-               <p className="text-muted-foreground font-medium text-lg">還沒有科目喔，快來新增一個吧！</p>
-             </div>
+            <div className="col-span-3 text-center py-12">
+              <div className="w-20 h-20 bg-muted rounded-[28px] rotate-12 flex items-center justify-center mx-auto mb-5 shadow-sm">
+                <Book className="w-10 h-10 text-muted-foreground -rotate-12" />
+              </div>
+              <p className="text-muted-foreground font-medium">還沒有科目喔，快來新增一個吧！</p>
+            </div>
           )}
         </div>
       </div>
