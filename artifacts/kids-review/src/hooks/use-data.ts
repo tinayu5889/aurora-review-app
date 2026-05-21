@@ -1,0 +1,68 @@
+import { useState, useEffect } from "react";
+
+export type Subject = {
+  id: string;
+  name: string;
+  color: string;
+  emoji: string;
+};
+
+export type ReviewSession = {
+  id: string;
+  subjectId: string;
+  scope: string;
+  firstDate: string;
+  reviewDates: string[];
+  completedDates: string[];
+};
+
+const INITIAL_SUBJECTS: Subject[] = [
+  { id: "1", name: "數學", color: "bg-blue-400", emoji: "📐" },
+  { id: "2", name: "國語", color: "bg-red-400", emoji: "📖" },
+  { id: "3", name: "自然", color: "bg-green-400", emoji: "🔬" },
+];
+
+export function useData() {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [sessions, setSessions] = useState<ReviewSession[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    const storedSubjects = localStorage.getItem("kr_subjects");
+    const storedSessions = localStorage.getItem("kr_sessions");
+
+    if (storedSubjects) {
+      setSubjects(JSON.parse(storedSubjects));
+    } else {
+      setSubjects(INITIAL_SUBJECTS);
+      localStorage.setItem("kr_subjects", JSON.stringify(INITIAL_SUBJECTS));
+    }
+
+    if (storedSessions) {
+      setSessions(JSON.parse(storedSessions));
+    } else {
+      // Empty sessions on start is fine, but could seed one if needed
+      setSessions([]);
+    }
+    
+    setIsLoaded(true);
+  }, []);
+
+  const saveSubjects = (newSubjects: Subject[]) => {
+    setSubjects(newSubjects);
+    localStorage.setItem("kr_subjects", JSON.stringify(newSubjects));
+  };
+
+  const saveSessions = (newSessions: ReviewSession[]) => {
+    setSessions(newSessions);
+    localStorage.setItem("kr_sessions", JSON.stringify(newSessions));
+  };
+
+  return {
+    subjects,
+    sessions,
+    saveSubjects,
+    saveSessions,
+    isLoaded,
+  };
+}
