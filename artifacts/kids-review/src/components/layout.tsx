@@ -4,10 +4,10 @@ import { Calendar, Home, PlusCircle, Book, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/", label: "今日複習", icon: Home },
   { href: "/add", label: "新增學習", icon: PlusCircle },
   { href: "/calendar", label: "月曆", icon: Calendar },
   { href: "/history", label: "學習歷程", icon: ClipboardList },
+  { href: "/", label: "今日複習", icon: Home },
   { href: "/subjects", label: "科目", icon: Book },
 ];
 

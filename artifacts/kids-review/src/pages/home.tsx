@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { format, differenceInCalendarDays } from "date-fns";
+import { format, differenceInCalendarDays, startOfWeek, isWithinInterval, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Star, ChevronRight, FileText, Pencil, Clock } from "lucide-react";
+import { Check, Star, ChevronRight, FileText, Pencil, Clock, TrendingUp } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useData, ReviewRecord, ReviewSession } from "@/hooks/use-data";
 import { adjustNextDate } from "@/lib/spaced-repetition";
@@ -30,6 +30,115 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; emoji: string; col
   { value: "normal", label: "普通", emoji: "😊", color: "bg-amber-100 border-amber-400 text-amber-700" },
   { value: "hard", label: "很難", emoji: "😤", color: "bg-red-100 border-red-400 text-red-700" },
 ];
+
+function WeeklySummaryCard({ sessions }: { sessions: ReviewSession[] }) {
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = now;
+
+  const stats = useMemo(() => {
+    let completedCount = 0;
+    let totalUnderstanding = 0;
+    let recordCount = 0;
+    const subjectIds = new Set<string>();
+    let hardCount = 0;
+
+    sessions.forEach(session => {
+      (session.records || []).forEach(record => {
+        try {
+          const d = parseISO(record.date);
+          if (isWithinInterval(d, { start: weekStart, end: weekEnd })) {
+            completedCount++;
+            totalUnderstanding += record.understanding;
+            recordCount++;
+            subjectIds.add(session.subjectId);
+            if (record.difficulty === "hard") hardCount++;
+          }
+        } catch {
+          // skip invalid dates
+        }
+      });
+    });
+
+    return {
+      completedCount,
+      avgUnderstanding: recordCount > 0 ? totalUnderstanding / recordCount : 0,
+      subjectCount: subjectIds.size,
+      recordCount,
+      hardCount,
+    };
+  }, [sessions]);
+
+  const weekStartLabel = format(weekStart, "M/d");
+  const todayLabel = format(now, "M/d");
+
+  const message = () => {
+    if (stats.completedCount === 0) return "本週還沒有複習紀錄，加油！";
+    if (stats.avgUnderstanding >= 4.5) return "本週表現超棒！繼續保持！";
+    if (stats.avgUnderstanding >= 3.5) return "本週學得不錯，繼續努力！";
+    if (stats.hardCount > stats.completedCount / 2) return "這週有點挑戰，別灰心！";
+    return "有在學習就是進步！";
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="mb-5"
+    >
+      <div className="rounded-3xl overflow-hidden shadow-sm border border-border/30"
+        style={{ background: "linear-gradient(135deg, hsl(345 80% 68%), hsl(25 90% 68%))" }}
+      >
+        <div className="px-5 pt-4 pb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-white/90" />
+              <span className="text-white font-bold text-sm">本週複習報告</span>
+            </div>
+            <span className="text-white/70 text-[11px] font-medium">{weekStartLabel} – {todayLabel}</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {/* Completed count */}
+            <div className="bg-white/20 rounded-2xl px-3 py-3 text-center backdrop-blur-sm">
+              <p className="text-white text-2xl font-black leading-none">{stats.completedCount}</p>
+              <p className="text-white/80 text-[10px] font-bold mt-1">完成次數</p>
+            </div>
+
+            {/* Average understanding */}
+            <div className="bg-white/20 rounded-2xl px-3 py-3 text-center backdrop-blur-sm">
+              {stats.recordCount > 0 ? (
+                <>
+                  <p className="text-white text-2xl font-black leading-none">{stats.avgUnderstanding.toFixed(1)}</p>
+                  <div className="flex justify-center gap-0.5 mt-1">
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <Star key={n} className={cn("w-2.5 h-2.5", n <= Math.round(stats.avgUnderstanding) ? "fill-white text-white" : "text-white/30")} />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-white text-2xl font-black leading-none">—</p>
+                  <p className="text-white/80 text-[10px] font-bold mt-1">理解程度</p>
+                </>
+              )}
+              {stats.recordCount > 0 && <p className="text-white/80 text-[10px] font-bold mt-0.5">理解程度</p>}
+            </div>
+
+            {/* Subjects covered */}
+            <div className="bg-white/20 rounded-2xl px-3 py-3 text-center backdrop-blur-sm">
+              <p className="text-white text-2xl font-black leading-none">{stats.subjectCount}</p>
+              <p className="text-white/80 text-[10px] font-bold mt-1">涵蓋科目</p>
+            </div>
+          </div>
+
+          <p className="text-white/90 text-xs font-bold text-center">{message()}</p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
@@ -69,9 +178,7 @@ function RecordSheet({ item, open, onClose, onSave }: {
           {item && (
             <p className="text-center text-muted-foreground font-medium text-sm mt-1">
               {item.subject?.emoji} {item.scope} · 第 {item.round} 次
-              {item.isOverdue && (
-                <span className="ml-2 text-red-500">（逾期 {item.overdueDays} 天）</span>
-              )}
+              {item.isOverdue && <span className="ml-2 text-red-500">（逾期 {item.overdueDays} 天）</span>}
             </p>
           )}
         </SheetHeader>
@@ -220,12 +327,8 @@ function SectionLabel({ label, count, overdue }: { label: string; count: number;
   return (
     <div className={cn("flex items-center gap-2 px-1 mb-3", overdue ? "mt-6" : "")}>
       {overdue && <Clock className="w-4 h-4 text-red-400 shrink-0" />}
-      <span className={cn("text-sm font-bold", overdue ? "text-red-500" : "text-muted-foreground")}>
-        {label}
-      </span>
-      <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", overdue ? "bg-red-100 text-red-600" : "bg-muted text-muted-foreground")}>
-        {count}
-      </span>
+      <span className={cn("text-sm font-bold", overdue ? "text-red-500" : "text-muted-foreground")}>{label}</span>
+      <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", overdue ? "bg-red-100 text-red-600" : "bg-muted text-muted-foreground")}>{count}</span>
       <div className={cn("flex-1 h-px", overdue ? "bg-red-200" : "bg-border/50")} />
     </div>
   );
@@ -241,9 +344,7 @@ function TaskCard({ item, onCardClick, onCompleteClick, isAnimating }: {
     <Card
       className={cn(
         "p-4 flex items-center gap-4 relative overflow-hidden border-2 transition-colors shadow-sm rounded-3xl cursor-pointer active:scale-[0.98]",
-        item.isOverdue
-          ? "border-red-300/60 bg-red-50/30 hover:border-red-400/40"
-          : "border-border/50 hover:border-primary/20"
+        item.isOverdue ? "border-red-300/60 bg-red-50/30 hover:border-red-400/40" : "border-border/50 hover:border-primary/20"
       )}
       onClick={onCardClick}
       data-testid={`card-due-${item.sessionId}-${item.date}`}
@@ -251,19 +352,12 @@ function TaskCard({ item, onCardClick, onCompleteClick, isAnimating }: {
       <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0 shadow-inner", item.subject?.color || "bg-muted")}>
         {item.subject?.emoji}
       </div>
-
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-          <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-muted text-muted-foreground truncate max-w-[70px]">
-            {item.subject?.name}
-          </span>
-          <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
-            第 {item.round} 次複習
-          </span>
+          <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-muted text-muted-foreground truncate max-w-[70px]">{item.subject?.name}</span>
+          <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">第 {item.round} 次複習</span>
           {item.isOverdue && (
-            <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">
-              已逾期 {item.overdueDays} 天
-            </span>
+            <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">已逾期 {item.overdueDays} 天</span>
           )}
         </div>
         <h3 className="text-base font-bold truncate text-foreground">{item.scope}</h3>
@@ -272,16 +366,11 @@ function TaskCard({ item, onCardClick, onCompleteClick, isAnimating }: {
           <span className="text-[10px] font-medium">點查看歷史紀錄與編輯</span>
         </div>
       </div>
-
       <Button
         size="icon"
         className={cn(
           "w-14 h-14 rounded-full shrink-0 shadow-md transition-all duration-300",
-          isAnimating
-            ? "bg-green-500 hover:bg-green-600 scale-110"
-            : item.isOverdue
-              ? "bg-red-400 hover:bg-red-500"
-              : "bg-primary hover:bg-primary/90"
+          isAnimating ? "bg-green-500 hover:bg-green-600 scale-110" : item.isOverdue ? "bg-red-400 hover:bg-red-500" : "bg-primary hover:bg-primary/90"
         )}
         onClick={e => { e.stopPropagation(); onCompleteClick(); }}
         data-testid={`button-complete-${item.sessionId}-${item.date}`}
@@ -309,32 +398,24 @@ export default function Home() {
       session.reviewDates.flatMap((date, index) => {
         if (date > todayStr) return [];
         if (session.completedDates.includes(date)) return [];
-        const animKey = `${session.id}-${date}`;
-        if (animatingIds.includes(animKey)) return [];
+        if (animatingIds.includes(`${session.id}-${date}`)) return [];
 
         const subject = subjects.find(s => s.id === session.subjectId);
         const reviewDate = new Date(date + "T00:00:00");
         const overdueDays = differenceInCalendarDays(todayDate, reviewDate);
 
         return [{
-          sessionId: session.id,
-          subject,
-          scope: session.scope,
-          round: index + 1,
-          date,
-          reviewDateIndex: index,
-          isOverdue: overdueDays > 0,
-          overdueDays,
+          sessionId: session.id, subject, scope: session.scope,
+          round: index + 1, date, reviewDateIndex: index,
+          isOverdue: overdueDays > 0, overdueDays,
         }];
       })
     );
 
-    const today = allPending.filter(i => !i.isOverdue);
-    const overdue = allPending
-      .filter(i => i.isOverdue)
-      .sort((a, b) => a.date.localeCompare(b.date)); // oldest overdue first
-
-    return { todayItems: today, overdueItems: overdue };
+    return {
+      todayItems: allPending.filter(i => !i.isOverdue),
+      overdueItems: allPending.filter(i => i.isOverdue).sort((a, b) => a.date.localeCompare(b.date)),
+    };
   }, [sessions, subjects, todayStr, isLoaded, animatingIds]);
 
   const totalPending = todayItems.length + overdueItems.length;
@@ -345,27 +426,15 @@ export default function Home() {
     if (!pendingItem) return;
     const { sessionId, date, reviewDateIndex } = pendingItem;
     const animKey = `${sessionId}-${date}`;
-
     setAnimatingIds(prev => [...prev, animKey]);
     setPendingItem(null);
 
     setTimeout(() => {
-      const newRecord: ReviewRecord = {
-        date,
-        difficulty,
-        understanding,
-        notes,
-        completedAt: new Date().toISOString(),
-      };
+      const newRecord: ReviewRecord = { date, difficulty, understanding, notes, completedAt: new Date().toISOString() };
       const updatedSessions = sessions.map(s => {
         if (s.id !== sessionId) return s;
         const newReviewDates = adjustNextDate(s.reviewDates, reviewDateIndex, difficulty);
-        return {
-          ...s,
-          reviewDates: newReviewDates,
-          completedDates: [...s.completedDates, date],
-          records: [...(s.records || []), newRecord],
-        };
+        return { ...s, reviewDates: newReviewDates, completedDates: [...s.completedDates, date], records: [...(s.records || []), newRecord] };
       });
       saveSessions(updatedSessions);
       setAnimatingIds(prev => prev.filter(id => id !== animKey));
@@ -383,43 +452,36 @@ export default function Home() {
     setDetailItem(null);
   };
 
-  const getSessionForItem = (item: DueItem | null) =>
-    item ? sessions.find(s => s.id === item.sessionId) ?? null : null;
-
-  const getSessionRecords = (sessionId: string) =>
-    sessions.find(s => s.id === sessionId)?.records ?? [];
-
-  const isAnimating = (item: DueItem) => animatingIds.includes(`${item.sessionId}-${item.date}`);
+  const getSessionForItem = (item: DueItem | null) => item ? sessions.find(s => s.id === item.sessionId) ?? null : null;
+  const getSessionRecords = (sessionId: string) => sessions.find(s => s.id === sessionId)?.records ?? [];
+  const isAnimatingItem = (item: DueItem) => animatingIds.includes(`${item.sessionId}-${item.date}`);
 
   return (
     <Layout>
       <div className="p-6 pb-24 flex flex-col">
-        <header className="mb-6 pt-4">
+        <header className="mb-4 pt-4">
           <h1 className="text-3xl font-bold text-foreground">今日複習</h1>
           <p className="text-muted-foreground mt-1 font-medium">
-            {!isLoaded
-              ? ""
-              : totalPending > 0
-                ? `共 ${totalPending} 個任務等著你！`
-                : "做得好！"}
+            {!isLoaded ? "" : totalPending > 0 ? `共 ${totalPending} 個任務等著你！` : "做得好！"}
           </p>
         </header>
+
+        {isLoaded && <WeeklySummaryCard sessions={sessions} />}
 
         {!isLoaded ? null : totalPending === 0 ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex-1 flex flex-col items-center justify-center text-center pb-20"
+            className="flex flex-col items-center justify-center text-center py-12"
           >
-            <div className="w-40 h-40 bg-accent/30 rounded-[40px] rotate-12 flex items-center justify-center mb-8 shadow-sm">
-              <span className="text-6xl -rotate-12 drop-shadow-md">🎉</span>
+            <div className="w-36 h-36 bg-accent/30 rounded-[40px] rotate-12 flex items-center justify-center mb-6 shadow-sm">
+              <span className="text-5xl -rotate-12 drop-shadow-md">🎉</span>
             </div>
             <h2 className="text-2xl font-bold text-foreground mb-2">今天全部完成了！</h2>
             <p className="text-muted-foreground font-medium">你太棒了，好好休息吧！</p>
           </motion.div>
         ) : (
           <div>
-            {/* Today's tasks */}
             {todayItems.length > 0 && (
               <>
                 <SectionLabel label="今日任務" count={todayItems.length} />
@@ -433,12 +495,7 @@ export default function Home() {
                         exit={{ opacity: 0, x: -120, transition: { duration: 0.3 } }}
                         transition={{ delay: index * 0.07 }}
                       >
-                        <TaskCard
-                          item={item}
-                          onCardClick={() => setDetailItem(item)}
-                          onCompleteClick={() => handleCompleteClick(item)}
-                          isAnimating={isAnimating(item)}
-                        />
+                        <TaskCard item={item} onCardClick={() => setDetailItem(item)} onCompleteClick={() => handleCompleteClick(item)} isAnimating={isAnimatingItem(item)} />
                       </motion.div>
                     ))}
                   </AnimatePresence>
@@ -446,7 +503,6 @@ export default function Home() {
               </>
             )}
 
-            {/* Overdue tasks */}
             {overdueItems.length > 0 && (
               <>
                 <SectionLabel label="逾期未完成" count={overdueItems.length} overdue />
@@ -460,12 +516,7 @@ export default function Home() {
                         exit={{ opacity: 0, x: -120, transition: { duration: 0.3 } }}
                         transition={{ delay: index * 0.07 }}
                       >
-                        <TaskCard
-                          item={item}
-                          onCardClick={() => setDetailItem(item)}
-                          onCompleteClick={() => handleCompleteClick(item)}
-                          isAnimating={isAnimating(item)}
-                        />
+                        <TaskCard item={item} onCardClick={() => setDetailItem(item)} onCompleteClick={() => handleCompleteClick(item)} isAnimating={isAnimatingItem(item)} />
                       </motion.div>
                     ))}
                   </AnimatePresence>
@@ -473,13 +524,8 @@ export default function Home() {
               </>
             )}
 
-            {/* Only overdue shown (no today tasks) — show a gentle note */}
             {todayItems.length === 0 && overdueItems.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mt-4 p-4 bg-green-50 rounded-3xl border-2 border-green-200 text-center"
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 p-4 bg-green-50 rounded-3xl border-2 border-green-200 text-center">
                 <p className="text-green-700 font-bold text-sm">今天沒有新任務</p>
                 <p className="text-green-600 text-xs mt-1">記得先完成上面的逾期任務喔！</p>
               </motion.div>
@@ -488,29 +534,9 @@ export default function Home() {
         )}
       </div>
 
-      <RecordSheet
-        item={pendingItem}
-        open={!!pendingItem}
-        onClose={() => setPendingItem(null)}
-        onSave={handleSaveRecord}
-      />
-
-      <DetailSheet
-        item={detailItem}
-        open={!!detailItem}
-        onClose={() => setDetailItem(null)}
-        records={detailItem ? getSessionRecords(detailItem.sessionId) : []}
-        onEditClick={() => setEditingSession(getSessionForItem(detailItem))}
-      />
-
-      <EditSessionSheet
-        session={editingSession}
-        subjects={subjects}
-        open={!!editingSession}
-        onClose={() => setEditingSession(null)}
-        onSave={handleEditSave}
-        onDelete={handleDelete}
-      />
+      <RecordSheet item={pendingItem} open={!!pendingItem} onClose={() => setPendingItem(null)} onSave={handleSaveRecord} />
+      <DetailSheet item={detailItem} open={!!detailItem} onClose={() => setDetailItem(null)} records={detailItem ? getSessionRecords(detailItem.sessionId) : []} onEditClick={() => setEditingSession(getSessionForItem(detailItem))} />
+      <EditSessionSheet session={editingSession} subjects={subjects} open={!!editingSession} onClose={() => setEditingSession(null)} onSave={handleEditSave} onDelete={handleDelete} />
     </Layout>
   );
 }
