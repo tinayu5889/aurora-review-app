@@ -9,6 +9,7 @@ import Subjects from "./pages/subjects";
 import AddLearning from "./pages/add";
 import CalendarPage from "./pages/calendar";
 import History from "./pages/history";
+import Weekly from "./pages/weekly";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/add" component={AddLearning} />
       <Route path="/calendar" component={CalendarPage} />
       <Route path="/history" component={History} />
+      <Route path="/weekly" component={Weekly} />
       <Route component={NotFound} />
     </Switch>
   );

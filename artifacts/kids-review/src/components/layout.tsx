@@ -1,14 +1,15 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Calendar, Home, PlusCircle, Book, ClipboardList } from "lucide-react";
+import { Calendar, Home, PlusCircle, Book, ClipboardList, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/add", label: "新增學習", icon: PlusCircle },
+  { href: "/add", label: "新增", icon: PlusCircle },
   { href: "/calendar", label: "月曆", icon: Calendar },
-  { href: "/history", label: "學習歷程", icon: ClipboardList },
+  { href: "/history", label: "歷程", icon: ClipboardList },
   { href: "/", label: "今日複習", icon: Home },
   { href: "/subjects", label: "科目", icon: Book },
+  { href: "/weekly", label: "本週報告", icon: TrendingUp },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
