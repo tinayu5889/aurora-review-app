@@ -8,6 +8,7 @@ import Home from "./pages/home";
 import Subjects from "./pages/subjects";
 import AddLearning from "./pages/add";
 import CalendarPage from "./pages/calendar";
+import History from "./pages/history";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/subjects" component={Subjects} />
       <Route path="/add" component={AddLearning} />
       <Route path="/calendar" component={CalendarPage} />
+      <Route path="/history" component={History} />
       <Route component={NotFound} />
     </Switch>
   );

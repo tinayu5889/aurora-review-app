@@ -7,6 +7,14 @@ export type Subject = {
   emoji: string;
 };
 
+export type ReviewRecord = {
+  date: string;
+  difficulty: "easy" | "normal" | "hard";
+  understanding: number;
+  notes: string;
+  completedAt: string;
+};
+
 export type ReviewSession = {
   id: string;
   subjectId: string;
@@ -14,6 +22,7 @@ export type ReviewSession = {
   firstDate: string;
   reviewDates: string[];
   completedDates: string[];
+  records: ReviewRecord[];
 };
 
 const INITIAL_SUBJECTS: Subject[] = [
@@ -21,6 +30,10 @@ const INITIAL_SUBJECTS: Subject[] = [
   { id: "2", name: "國語", color: "bg-red-400", emoji: "📖" },
   { id: "3", name: "自然", color: "bg-green-400", emoji: "🔬" },
 ];
+
+function migrateSession(s: ReviewSession): ReviewSession {
+  return { records: [], ...s };
+}
 
 export function useData() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -39,12 +52,12 @@ export function useData() {
     }
 
     if (storedSessions) {
-      setSessions(JSON.parse(storedSessions));
+      const parsed: ReviewSession[] = JSON.parse(storedSessions);
+      setSessions(parsed.map(migrateSession));
     } else {
-      // Empty sessions on start is fine, but could seed one if needed
       setSessions([]);
     }
-    
+
     setIsLoaded(true);
   }, []);
 
