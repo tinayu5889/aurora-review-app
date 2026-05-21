@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Star, ChevronRight, FileText } from "lucide-react";
+import { Check, Star, ChevronRight, FileText, Pencil } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, ReviewRecord } from "@/hooks/use-data";
+import { useData, ReviewRecord, ReviewSession } from "@/hooks/use-data";
 import { adjustNextDate } from "@/lib/spaced-repetition";
+import { EditSessionSheet } from "@/components/edit-session-sheet";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -32,18 +33,8 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   return (
     <div className="flex gap-2 justify-center">
       {[1, 2, 3, 4, 5].map(n => (
-        <button
-          key={n}
-          onClick={() => onChange(n)}
-          className="transition-transform active:scale-90"
-          data-testid={`star-${n}`}
-        >
-          <Star
-            className={cn(
-              "w-10 h-10 transition-colors",
-              n <= value ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"
-            )}
-          />
+        <button key={n} onClick={() => onChange(n)} className="transition-transform active:scale-90" data-testid={`star-${n}`}>
+          <Star className={cn("w-10 h-10 transition-colors", n <= value ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")} />
         </button>
       ))}
     </div>
@@ -51,10 +42,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 function RecordSheet({
-  item,
-  open,
-  onClose,
-  onSave,
+  item, open, onClose, onSave,
 }: {
   item: DueItem | null;
   open: boolean;
@@ -74,15 +62,10 @@ function RecordSheet({
 
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-[32px] pb-10 px-6 sm:max-w-md sm:mx-auto border-none shadow-2xl max-h-[90vh] overflow-y-auto"
-      >
+      <SheetContent side="bottom" className="rounded-t-[32px] pb-10 px-6 sm:max-w-md sm:mx-auto border-none shadow-2xl max-h-[90vh] overflow-y-auto">
         <SheetHeader className="mb-6 mt-2">
           <div className="w-10 h-1.5 bg-muted rounded-full mx-auto mb-4" />
-          <SheetTitle className="text-2xl font-bold text-center">
-            複習完成！記錄一下吧
-          </SheetTitle>
+          <SheetTitle className="text-2xl font-bold text-center">複習完成！記錄一下吧</SheetTitle>
           {item && (
             <p className="text-center text-muted-foreground font-medium text-sm mt-1">
               {item.subject?.emoji} {item.scope} · 第 {item.round} 次
@@ -100,9 +83,7 @@ function RecordSheet({
                   onClick={() => setDifficulty(opt.value)}
                   className={cn(
                     "flex-1 flex flex-col items-center gap-2 py-4 rounded-3xl border-2 transition-all active:scale-95 font-bold text-sm",
-                    difficulty === opt.value
-                      ? cn(opt.color, "scale-105 shadow-md")
-                      : "border-border/50 bg-card text-muted-foreground hover:bg-muted"
+                    difficulty === opt.value ? cn(opt.color, "scale-105 shadow-md") : "border-border/50 bg-card text-muted-foreground hover:bg-muted"
                   )}
                   data-testid={`difficulty-${opt.value}`}
                 >
@@ -142,11 +123,7 @@ function RecordSheet({
             />
           </div>
 
-          <Button
-            onClick={handleSave}
-            className="w-full h-14 text-lg rounded-full font-bold shadow-lg"
-            data-testid="button-save-record"
-          >
+          <Button onClick={handleSave} className="w-full h-14 text-lg rounded-full font-bold shadow-lg" data-testid="button-save-record">
             <Check className="w-5 h-5 mr-2" strokeWidth={3} />
             完成！
           </Button>
@@ -157,15 +134,13 @@ function RecordSheet({
 }
 
 function DetailSheet({
-  item,
-  open,
-  onClose,
-  records,
+  item, open, onClose, records, onEditClick,
 }: {
   item: DueItem | null;
   open: boolean;
   onClose: () => void;
   records: ReviewRecord[];
+  onEditClick: () => void;
 }) {
   if (!item) return null;
 
@@ -177,10 +152,7 @@ function DetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-[32px] pb-10 px-6 sm:max-w-md sm:mx-auto border-none shadow-2xl max-h-[85vh] overflow-y-auto"
-      >
+      <SheetContent side="bottom" className="rounded-t-[32px] pb-10 px-6 sm:max-w-md sm:mx-auto border-none shadow-2xl max-h-[85vh] overflow-y-auto">
         <SheetHeader className="mb-4 mt-2">
           <div className="w-10 h-1.5 bg-muted rounded-full mx-auto mb-4" />
           <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-2", item.subject?.color || "bg-muted")}>
@@ -198,10 +170,10 @@ function DetailSheet({
             </div>
           ) : (
             records.map((rec, i) => {
-              const diff = difficultyMap[rec.difficulty];
+              const diff = difficultyMap[rec.difficulty as Difficulty] ?? difficultyMap.normal;
               return (
                 <motion.div
-                  key={rec.date}
+                  key={rec.date + i}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }}
@@ -218,15 +190,24 @@ function DetailSheet({
                     <span className="text-xs text-muted-foreground ml-1">{rec.understanding} 分</span>
                   </div>
                   {rec.notes && (
-                    <p className="text-sm text-muted-foreground bg-muted/50 rounded-2xl px-3 py-2">
-                      {rec.notes}
-                    </p>
+                    <p className="text-sm text-muted-foreground bg-muted/50 rounded-2xl px-3 py-2">{rec.notes}</p>
                   )}
                 </motion.div>
               );
             })
           )}
         </div>
+
+        {/* Edit button */}
+        <Button
+          variant="outline"
+          className="w-full mt-5 h-12 rounded-2xl font-bold border-2 border-primary/30 text-primary hover:bg-primary/5"
+          onClick={() => { onClose(); setTimeout(onEditClick, 150); }}
+          data-testid="button-open-edit-from-detail"
+        >
+          <Pencil className="w-4 h-4 mr-2" />
+          編輯 / 刪除此計畫
+        </Button>
       </SheetContent>
     </Sheet>
   );
@@ -236,6 +217,7 @@ export default function Home() {
   const { subjects, sessions, saveSessions, isLoaded } = useData();
   const [pendingItem, setPendingItem] = useState<DueItem | null>(null);
   const [detailItem, setDetailItem] = useState<DueItem | null>(null);
+  const [editingSession, setEditingSession] = useState<ReviewSession | null>(null);
   const [animatingIds, setAnimatingIds] = useState<string[]>([]);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -259,9 +241,7 @@ export default function Home() {
     }).filter(item => !animatingIds.includes(`${item.sessionId}-${item.date}`));
   }, [sessions, subjects, todayStr, isLoaded, animatingIds]);
 
-  const handleCompleteClick = (item: DueItem) => {
-    setPendingItem(item);
-  };
+  const handleCompleteClick = (item: DueItem) => setPendingItem(item);
 
   const handleSaveRecord = (difficulty: Difficulty, understanding: number, notes: string) => {
     if (!pendingItem) return;
@@ -272,13 +252,8 @@ export default function Home() {
 
     setTimeout(() => {
       const newRecord: ReviewRecord = {
-        date,
-        difficulty,
-        understanding,
-        notes,
-        completedAt: new Date().toISOString(),
+        date, difficulty, understanding, notes, completedAt: new Date().toISOString(),
       };
-
       const updatedSessions = sessions.map(s => {
         if (s.id !== sessionId) return s;
         const newReviewDates = adjustNextDate(s.reviewDates, reviewDateIndex, difficulty);
@@ -289,16 +264,27 @@ export default function Home() {
           records: [...(s.records || []), newRecord],
         };
       });
-
       saveSessions(updatedSessions);
       setAnimatingIds(prev => prev.filter(id => id !== `${sessionId}-${date}`));
     }, 400);
   };
 
-  const getSessionRecords = (sessionId: string) => {
-    const session = sessions.find(s => s.id === sessionId);
-    return session?.records || [];
+  const handleEditSave = (updated: ReviewSession) => {
+    saveSessions(sessions.map(s => s.id === updated.id ? updated : s));
+    setEditingSession(null);
   };
+
+  const handleDelete = (sessionId: string) => {
+    saveSessions(sessions.filter(s => s.id !== sessionId));
+    setEditingSession(null);
+    setDetailItem(null);
+  };
+
+  const getSessionForItem = (item: DueItem | null) =>
+    item ? sessions.find(s => s.id === item.sessionId) ?? null : null;
+
+  const getSessionRecords = (sessionId: string) =>
+    sessions.find(s => s.id === sessionId)?.records ?? [];
 
   return (
     <Layout>
@@ -341,7 +327,6 @@ export default function Home() {
                     <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0 shadow-inner", item.subject?.color || "bg-muted")}>
                       {item.subject?.emoji}
                     </div>
-
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-muted text-muted-foreground truncate max-w-[80px]">
@@ -354,10 +339,9 @@ export default function Home() {
                       <h3 className="text-lg font-bold truncate text-foreground">{item.scope}</h3>
                       <div className="flex items-center gap-1 mt-1 text-muted-foreground">
                         <ChevronRight className="w-3 h-3" />
-                        <span className="text-[10px] font-medium">點查看歷史紀錄</span>
+                        <span className="text-[10px] font-medium">點查看歷史紀錄與編輯</span>
                       </div>
                     </div>
-
                     <Button
                       size="icon"
                       className="w-14 h-14 rounded-full shrink-0 shadow-md bg-primary hover:bg-primary/90 transition-all duration-300"
@@ -386,6 +370,16 @@ export default function Home() {
         open={!!detailItem}
         onClose={() => setDetailItem(null)}
         records={detailItem ? getSessionRecords(detailItem.sessionId) : []}
+        onEditClick={() => setEditingSession(getSessionForItem(detailItem))}
+      />
+
+      <EditSessionSheet
+        session={editingSession}
+        subjects={subjects}
+        open={!!editingSession}
+        onClose={() => setEditingSession(null)}
+        onSave={handleEditSave}
+        onDelete={handleDelete}
       />
     </Layout>
   );

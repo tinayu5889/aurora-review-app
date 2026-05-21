@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Star, CalendarDays, TrendingUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Star, CalendarDays, TrendingUp, Pencil } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, ReviewRecord } from "@/hooks/use-data";
+import { useData, ReviewRecord, ReviewSession } from "@/hooks/use-data";
+import { EditSessionSheet } from "@/components/edit-session-sheet";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Difficulty = "easy" | "normal" | "hard";
@@ -76,8 +78,19 @@ function RecordRow({ rec, index }: { rec: ReviewRecord; index: number }) {
 }
 
 export default function History() {
-  const { subjects, sessions, isLoaded } = useData();
+  const { subjects, sessions, saveSessions, isLoaded } = useData();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingSession, setEditingSession] = useState<ReviewSession | null>(null);
+
+  const handleSave = (updated: ReviewSession) => {
+    saveSessions(sessions.map(s => s.id === updated.id ? updated : s));
+    setEditingSession(null);
+  };
+
+  const handleDelete = (sessionId: string) => {
+    saveSessions(sessions.filter(s => s.id !== sessionId));
+    setExpandedId(null);
+  };
 
   const enrichedSessions = useMemo(() => {
     if (!isLoaded) return [];
@@ -97,16 +110,7 @@ export default function History() {
             : null;
         const nextPending = session.reviewDates.find(d => !session.completedDates.includes(d)) ?? null;
 
-        return {
-          session,
-          subject,
-          completedCount,
-          totalCount,
-          records,
-          avgUnderstanding,
-          lastCompleted,
-          nextPending,
-        };
+        return { session, subject, completedCount, totalCount, records, avgUnderstanding, lastCompleted, nextPending };
       })
       .sort((a, b) => {
         const aDate = a.lastCompleted ?? a.session.firstDate;
@@ -114,10 +118,6 @@ export default function History() {
         return bDate.localeCompare(aDate);
       });
   }, [sessions, subjects, isLoaded]);
-
-  const toggleExpand = (id: string) => {
-    setExpandedId(prev => (prev === id ? null : id));
-  };
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -146,9 +146,7 @@ export default function History() {
             {enrichedSessions.map(({ session, subject, completedCount, totalCount, records, avgUnderstanding, lastCompleted, nextPending }, index) => {
               const isExpanded = expandedId === session.id;
               const isAllDone = completedCount === totalCount;
-              const hasOverdue = session.reviewDates.some(
-                d => d < today && !session.completedDates.includes(d)
-              );
+              const hasOverdue = session.reviewDates.some(d => d < today && !session.completedDates.includes(d));
 
               return (
                 <motion.div
@@ -162,9 +160,10 @@ export default function History() {
                     "border-2 rounded-3xl shadow-sm overflow-hidden transition-colors",
                     isAllDone ? "border-green-400/40" : hasOverdue ? "border-red-300/50" : "border-border/50"
                   )}>
+                    {/* Header row — tap to expand */}
                     <button
                       className="w-full p-4 text-left active:bg-muted/30 transition-colors"
-                      onClick={() => toggleExpand(session.id)}
+                      onClick={() => setExpandedId(isExpanded ? null : session.id)}
                       data-testid={`toggle-history-${session.id}`}
                     >
                       <div className="flex items-center gap-3 mb-3">
@@ -174,12 +173,8 @@ export default function History() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{subject?.name}</span>
-                            {isAllDone && (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">全部完成</span>
-                            )}
-                            {hasOverdue && (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">有逾期</span>
-                            )}
+                            {isAllDone && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">全部完成</span>}
+                            {hasOverdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">有逾期</span>}
                           </div>
                           <h3 className="font-bold text-foreground text-base leading-tight truncate">{session.scope}</h3>
                         </div>
@@ -210,14 +205,14 @@ export default function History() {
                           )}>
                             <CalendarDays className={cn("w-3 h-3 shrink-0", nextPending < today ? "text-red-500" : "text-primary")} />
                             <span className={cn("text-[10px] font-bold", nextPending < today ? "text-red-600" : "text-primary")}>
-                              {nextPending < today ? "逾期未複習：" : "下次複習："}
-                              {nextPending}
+                              {nextPending < today ? "逾期未複習：" : "下次複習："}{nextPending}
                             </span>
                           </div>
                         )}
                       </div>
                     </button>
 
+                    {/* Expanded content */}
                     <AnimatePresence>
                       {isExpanded && (
                         <motion.div
@@ -227,19 +222,31 @@ export default function History() {
                           transition={{ duration: 0.25 }}
                           className="overflow-hidden"
                         >
-                          <div className="px-4 pb-4 pt-1 space-y-2 border-t border-border/30">
-                            <p className="text-xs font-bold text-muted-foreground pt-2 mb-3">歷次複習紀錄</p>
+                          <div className="px-4 pb-4 pt-1 border-t border-border/30">
+                            {/* Edit button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full mt-3 mb-4 rounded-2xl font-bold border-2 border-primary/30 text-primary hover:bg-primary/5"
+                              onClick={() => setEditingSession(session)}
+                              data-testid={`button-edit-${session.id}`}
+                            >
+                              <Pencil className="w-4 h-4 mr-2" />
+                              編輯 / 刪除此計畫
+                            </Button>
+
+                            <p className="text-xs font-bold text-muted-foreground mb-3">歷次複習紀錄</p>
                             {records.length === 0 ? (
                               <p className="text-xs text-muted-foreground text-center py-4">
                                 尚無詳細紀錄（完成複習後會記錄在這裡）
                               </p>
                             ) : (
-                              records.map((rec, i) => (
-                                <RecordRow key={rec.date + i} rec={rec} index={i} />
-                              ))
+                              <div className="space-y-2">
+                                {records.map((rec, i) => <RecordRow key={rec.date + i} rec={rec} index={i} />)}
+                              </div>
                             )}
 
-                            <div className="mt-3 pt-3 border-t border-border/30">
+                            <div className="mt-4 pt-3 border-t border-border/30">
                               <p className="text-xs font-bold text-muted-foreground mb-2">複習日程</p>
                               <div className="space-y-1">
                                 {session.reviewDates.map((d, i) => {
@@ -253,10 +260,7 @@ export default function History() {
                                       )}>
                                         {i + 1}
                                       </div>
-                                      <span className={cn(
-                                        "text-xs font-medium",
-                                        done ? "line-through text-muted-foreground" : overdue ? "text-red-600 font-bold" : "text-foreground"
-                                      )}>
+                                      <span className={cn("text-xs font-medium", done ? "line-through text-muted-foreground" : overdue ? "text-red-600 font-bold" : "text-foreground")}>
                                         {d}
                                       </span>
                                       {done && <span className="text-[10px] text-green-600 font-bold">✓ 完成</span>}
@@ -277,6 +281,15 @@ export default function History() {
           </div>
         )}
       </div>
+
+      <EditSessionSheet
+        session={editingSession}
+        subjects={subjects}
+        open={!!editingSession}
+        onClose={() => setEditingSession(null)}
+        onSave={handleSave}
+        onDelete={handleDelete}
+      />
     </Layout>
   );
 }
