@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Star, ChevronRight, FileText, Pencil } from "lucide-react";
+import { Check, Star, ChevronRight, FileText, Pencil, Clock } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useData, ReviewRecord, ReviewSession } from "@/hooks/use-data";
 import { adjustNextDate } from "@/lib/spaced-repetition";
@@ -19,6 +19,8 @@ type DueItem = {
   round: number;
   date: string;
   reviewDateIndex: number;
+  isOverdue: boolean;
+  overdueDays: number;
 };
 
 type Difficulty = "easy" | "normal" | "hard";
@@ -41,9 +43,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
-function RecordSheet({
-  item, open, onClose, onSave,
-}: {
+function RecordSheet({ item, open, onClose, onSave }: {
   item: DueItem | null;
   open: boolean;
   onClose: () => void;
@@ -69,6 +69,9 @@ function RecordSheet({
           {item && (
             <p className="text-center text-muted-foreground font-medium text-sm mt-1">
               {item.subject?.emoji} {item.scope} · 第 {item.round} 次
+              {item.isOverdue && (
+                <span className="ml-2 text-red-500">（逾期 {item.overdueDays} 天）</span>
+              )}
             </p>
           )}
         </SheetHeader>
@@ -133,9 +136,7 @@ function RecordSheet({
   );
 }
 
-function DetailSheet({
-  item, open, onClose, records, onEditClick,
-}: {
+function DetailSheet({ item, open, onClose, records, onEditClick }: {
   item: DueItem | null;
   open: boolean;
   onClose: () => void;
@@ -160,6 +161,9 @@ function DetailSheet({
           </div>
           <SheetTitle className="text-xl font-bold text-center">{item.scope}</SheetTitle>
           <p className="text-center text-muted-foreground font-medium text-sm">{item.subject?.name}</p>
+          {item.isOverdue && (
+            <p className="text-center text-red-500 font-bold text-sm mt-1">已逾期 {item.overdueDays} 天</p>
+          )}
         </SheetHeader>
 
         <div className="space-y-3">
@@ -198,7 +202,6 @@ function DetailSheet({
           )}
         </div>
 
-        {/* Edit button */}
         <Button
           variant="outline"
           className="w-full mt-5 h-12 rounded-2xl font-bold border-2 border-primary/30 text-primary hover:bg-primary/5"
@@ -213,6 +216,82 @@ function DetailSheet({
   );
 }
 
+function SectionLabel({ label, count, overdue }: { label: string; count: number; overdue?: boolean }) {
+  return (
+    <div className={cn("flex items-center gap-2 px-1 mb-3", overdue ? "mt-6" : "")}>
+      {overdue && <Clock className="w-4 h-4 text-red-400 shrink-0" />}
+      <span className={cn("text-sm font-bold", overdue ? "text-red-500" : "text-muted-foreground")}>
+        {label}
+      </span>
+      <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", overdue ? "bg-red-100 text-red-600" : "bg-muted text-muted-foreground")}>
+        {count}
+      </span>
+      <div className={cn("flex-1 h-px", overdue ? "bg-red-200" : "bg-border/50")} />
+    </div>
+  );
+}
+
+function TaskCard({ item, onCardClick, onCompleteClick, isAnimating }: {
+  item: DueItem;
+  onCardClick: () => void;
+  onCompleteClick: () => void;
+  isAnimating: boolean;
+}) {
+  return (
+    <Card
+      className={cn(
+        "p-4 flex items-center gap-4 relative overflow-hidden border-2 transition-colors shadow-sm rounded-3xl cursor-pointer active:scale-[0.98]",
+        item.isOverdue
+          ? "border-red-300/60 bg-red-50/30 hover:border-red-400/40"
+          : "border-border/50 hover:border-primary/20"
+      )}
+      onClick={onCardClick}
+      data-testid={`card-due-${item.sessionId}-${item.date}`}
+    >
+      <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0 shadow-inner", item.subject?.color || "bg-muted")}>
+        {item.subject?.emoji}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+          <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-muted text-muted-foreground truncate max-w-[70px]">
+            {item.subject?.name}
+          </span>
+          <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
+            第 {item.round} 次複習
+          </span>
+          {item.isOverdue && (
+            <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">
+              已逾期 {item.overdueDays} 天
+            </span>
+          )}
+        </div>
+        <h3 className="text-base font-bold truncate text-foreground">{item.scope}</h3>
+        <div className="flex items-center gap-1 mt-1 text-muted-foreground">
+          <ChevronRight className="w-3 h-3" />
+          <span className="text-[10px] font-medium">點查看歷史紀錄與編輯</span>
+        </div>
+      </div>
+
+      <Button
+        size="icon"
+        className={cn(
+          "w-14 h-14 rounded-full shrink-0 shadow-md transition-all duration-300",
+          isAnimating
+            ? "bg-green-500 hover:bg-green-600 scale-110"
+            : item.isOverdue
+              ? "bg-red-400 hover:bg-red-500"
+              : "bg-primary hover:bg-primary/90"
+        )}
+        onClick={e => { e.stopPropagation(); onCompleteClick(); }}
+        data-testid={`button-complete-${item.sessionId}-${item.date}`}
+      >
+        <Check className="w-7 h-7 text-white" strokeWidth={4} />
+      </Button>
+    </Card>
+  );
+}
+
 export default function Home() {
   const { subjects, sessions, saveSessions, isLoaded } = useData();
   const [pendingItem, setPendingItem] = useState<DueItem | null>(null);
@@ -221,38 +300,62 @@ export default function Home() {
   const [animatingIds, setAnimatingIds] = useState<string[]>([]);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayDate = new Date(todayStr + "T00:00:00");
 
-  const dueItems = useMemo<DueItem[]>(() => {
-    if (!isLoaded) return [];
-    return sessions.flatMap(session => {
-      const dueIndex = session.reviewDates.findIndex(date => date === todayStr);
-      if (dueIndex !== -1 && !session.completedDates.includes(todayStr)) {
+  const { todayItems, overdueItems } = useMemo(() => {
+    if (!isLoaded) return { todayItems: [], overdueItems: [] };
+
+    const allPending: DueItem[] = sessions.flatMap(session =>
+      session.reviewDates.flatMap((date, index) => {
+        if (date > todayStr) return [];
+        if (session.completedDates.includes(date)) return [];
+        const animKey = `${session.id}-${date}`;
+        if (animatingIds.includes(animKey)) return [];
+
         const subject = subjects.find(s => s.id === session.subjectId);
+        const reviewDate = new Date(date + "T00:00:00");
+        const overdueDays = differenceInCalendarDays(todayDate, reviewDate);
+
         return [{
           sessionId: session.id,
           subject,
           scope: session.scope,
-          round: dueIndex + 1,
-          date: todayStr,
-          reviewDateIndex: dueIndex,
+          round: index + 1,
+          date,
+          reviewDateIndex: index,
+          isOverdue: overdueDays > 0,
+          overdueDays,
         }];
-      }
-      return [];
-    }).filter(item => !animatingIds.includes(`${item.sessionId}-${item.date}`));
+      })
+    );
+
+    const today = allPending.filter(i => !i.isOverdue);
+    const overdue = allPending
+      .filter(i => i.isOverdue)
+      .sort((a, b) => a.date.localeCompare(b.date)); // oldest overdue first
+
+    return { todayItems: today, overdueItems: overdue };
   }, [sessions, subjects, todayStr, isLoaded, animatingIds]);
+
+  const totalPending = todayItems.length + overdueItems.length;
 
   const handleCompleteClick = (item: DueItem) => setPendingItem(item);
 
   const handleSaveRecord = (difficulty: Difficulty, understanding: number, notes: string) => {
     if (!pendingItem) return;
     const { sessionId, date, reviewDateIndex } = pendingItem;
+    const animKey = `${sessionId}-${date}`;
 
-    setAnimatingIds(prev => [...prev, `${sessionId}-${date}`]);
+    setAnimatingIds(prev => [...prev, animKey]);
     setPendingItem(null);
 
     setTimeout(() => {
       const newRecord: ReviewRecord = {
-        date, difficulty, understanding, notes, completedAt: new Date().toISOString(),
+        date,
+        difficulty,
+        understanding,
+        notes,
+        completedAt: new Date().toISOString(),
       };
       const updatedSessions = sessions.map(s => {
         if (s.id !== sessionId) return s;
@@ -265,7 +368,7 @@ export default function Home() {
         };
       });
       saveSessions(updatedSessions);
-      setAnimatingIds(prev => prev.filter(id => id !== `${sessionId}-${date}`));
+      setAnimatingIds(prev => prev.filter(id => id !== animKey));
     }, 400);
   };
 
@@ -286,17 +389,23 @@ export default function Home() {
   const getSessionRecords = (sessionId: string) =>
     sessions.find(s => s.id === sessionId)?.records ?? [];
 
+  const isAnimating = (item: DueItem) => animatingIds.includes(`${item.sessionId}-${item.date}`);
+
   return (
     <Layout>
       <div className="p-6 pb-24 flex flex-col">
         <header className="mb-6 pt-4">
           <h1 className="text-3xl font-bold text-foreground">今日複習</h1>
           <p className="text-muted-foreground mt-1 font-medium">
-            {!isLoaded ? "" : dueItems.length > 0 ? `還有 ${dueItems.length} 個任務等著你！` : "做得好！"}
+            {!isLoaded
+              ? ""
+              : totalPending > 0
+                ? `共 ${totalPending} 個任務等著你！`
+                : "做得好！"}
           </p>
         </header>
 
-        {!isLoaded ? null : dueItems.length === 0 ? (
+        {!isLoaded ? null : totalPending === 0 ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -309,51 +418,72 @@ export default function Home() {
             <p className="text-muted-foreground font-medium">你太棒了，好好休息吧！</p>
           </motion.div>
         ) : (
-          <div className="space-y-4">
-            <AnimatePresence>
-              {dueItems.map((item, index) => (
-                <motion.div
-                  key={`${item.sessionId}-${item.date}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -120, transition: { duration: 0.35 } }}
-                  transition={{ delay: index * 0.08 }}
-                >
-                  <Card
-                    className="p-4 flex items-center gap-4 relative overflow-hidden border-2 border-border/50 hover:border-primary/20 transition-colors shadow-sm rounded-3xl cursor-pointer active:scale-[0.98]"
-                    onClick={() => setDetailItem(item)}
-                    data-testid={`card-due-${item.sessionId}`}
-                  >
-                    <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0 shadow-inner", item.subject?.color || "bg-muted")}>
-                      {item.subject?.emoji}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-muted text-muted-foreground truncate max-w-[80px]">
-                          {item.subject?.name}
-                        </span>
-                        <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
-                          第 {item.round} 次複習
-                        </span>
-                      </div>
-                      <h3 className="text-lg font-bold truncate text-foreground">{item.scope}</h3>
-                      <div className="flex items-center gap-1 mt-1 text-muted-foreground">
-                        <ChevronRight className="w-3 h-3" />
-                        <span className="text-[10px] font-medium">點查看歷史紀錄與編輯</span>
-                      </div>
-                    </div>
-                    <Button
-                      size="icon"
-                      className="w-14 h-14 rounded-full shrink-0 shadow-md bg-primary hover:bg-primary/90 transition-all duration-300"
-                      onClick={e => { e.stopPropagation(); handleCompleteClick(item); }}
-                      data-testid={`button-complete-${item.sessionId}`}
-                    >
-                      <Check className="w-7 h-7 text-white" strokeWidth={4} />
-                    </Button>
-                  </Card>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+          <div>
+            {/* Today's tasks */}
+            {todayItems.length > 0 && (
+              <>
+                <SectionLabel label="今日任務" count={todayItems.length} />
+                <div className="space-y-3">
+                  <AnimatePresence>
+                    {todayItems.map((item, index) => (
+                      <motion.div
+                        key={`${item.sessionId}-${item.date}`}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: -120, transition: { duration: 0.3 } }}
+                        transition={{ delay: index * 0.07 }}
+                      >
+                        <TaskCard
+                          item={item}
+                          onCardClick={() => setDetailItem(item)}
+                          onCompleteClick={() => handleCompleteClick(item)}
+                          isAnimating={isAnimating(item)}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </>
+            )}
+
+            {/* Overdue tasks */}
+            {overdueItems.length > 0 && (
+              <>
+                <SectionLabel label="逾期未完成" count={overdueItems.length} overdue />
+                <div className="space-y-3">
+                  <AnimatePresence>
+                    {overdueItems.map((item, index) => (
+                      <motion.div
+                        key={`${item.sessionId}-${item.date}`}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: -120, transition: { duration: 0.3 } }}
+                        transition={{ delay: index * 0.07 }}
+                      >
+                        <TaskCard
+                          item={item}
+                          onCardClick={() => setDetailItem(item)}
+                          onCompleteClick={() => handleCompleteClick(item)}
+                          isAnimating={isAnimating(item)}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </>
+            )}
+
+            {/* Only overdue shown (no today tasks) — show a gentle note */}
+            {todayItems.length === 0 && overdueItems.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mt-4 p-4 bg-green-50 rounded-3xl border-2 border-green-200 text-center"
+              >
+                <p className="text-green-700 font-bold text-sm">今天沒有新任務</p>
+                <p className="text-green-600 text-xs mt-1">記得先完成上面的逾期任務喔！</p>
+              </motion.div>
+            )}
           </div>
         )}
       </div>
