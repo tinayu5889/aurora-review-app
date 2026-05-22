@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Edit, Book } from "lucide-react";
+import { Plus, Trash2, Edit, Book, Download, Upload, CheckCircle, AlertTriangle } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, Subject } from "@/hooks/use-data";
+import { useData, Subject, ReviewSession } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 const COLORS = [
@@ -17,11 +18,204 @@ const COLORS = [
 
 const EMOJIS = ["📚", "📐", "🔬", "🎨", "🎵", "⚽️", "💻", "🌍", "📝", "✍️", "🧠", "💡", "🌟", "🚀"];
 
+type BackupData = {
+  version: string;
+  appName: string;
+  exportedAt: string;
+  subjects: Subject[];
+  sessions: ReviewSession[];
+};
+
+type ImportStatus = "idle" | "success" | "error";
+
+function BackupCard({
+  subjects,
+  sessions,
+  onImport,
+}: {
+  subjects: Subject[];
+  sessions: ReviewSession[];
+  onImport: (data: BackupData) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importStatus, setImportStatus] = useState<ImportStatus>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [pendingData, setPendingData] = useState<BackupData | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const lastBackup = localStorage.getItem("kr_last_backup");
+
+  const handleExport = () => {
+    const data: BackupData = {
+      version: "1.0",
+      appName: "aurora-review-app",
+      exportedAt: new Date().toISOString(),
+      subjects,
+      sessions,
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `aurora-review-backup-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    localStorage.setItem("kr_last_backup", new Date().toLocaleString("zh-TW"));
+    setImportStatus("idle");
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!fileInputRef.current) return;
+    fileInputRef.current.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string) as BackupData;
+
+        if (
+          !parsed.appName ||
+          !Array.isArray(parsed.subjects) ||
+          !Array.isArray(parsed.sessions)
+        ) {
+          throw new Error("檔案格式不正確，請確認是否為本 App 匯出的備份");
+        }
+
+        setPendingData(parsed);
+        setConfirmOpen(true);
+        setImportStatus("idle");
+        setErrorMsg("");
+      } catch (err) {
+        setImportStatus("error");
+        setErrorMsg(err instanceof Error ? err.message : "無法讀取檔案，請確認格式正確");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = () => {
+    if (!pendingData) return;
+    onImport(pendingData);
+    setImportStatus("success");
+    setConfirmOpen(false);
+    setPendingData(null);
+    setTimeout(() => setImportStatus("idle"), 3000);
+  };
+
+  return (
+    <>
+      <div className="mb-6 bg-card border-2 border-border/40 rounded-3xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-base">💾</span>
+          <h2 className="text-sm font-bold text-foreground">資料備份與還原</h2>
+        </div>
+
+        <div className="flex gap-2 mb-3">
+          <Button
+            onClick={handleExport}
+            variant="outline"
+            className="flex-1 h-12 rounded-2xl font-bold border-2 border-primary/30 text-primary hover:bg-primary/5 text-sm"
+          >
+            <Download className="w-4 h-4 mr-1.5" />
+            匯出備份
+          </Button>
+
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            variant="outline"
+            className="flex-1 h-12 rounded-2xl font-bold border-2 border-amber-400/40 text-amber-600 hover:bg-amber-50 text-sm"
+          >
+            <Upload className="w-4 h-4 mr-1.5" />
+            匯入還原
+          </Button>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+
+        {importStatus === "success" && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 text-green-700 bg-green-50 rounded-2xl px-3 py-2 text-xs font-bold"
+          >
+            <CheckCircle className="w-4 h-4 shrink-0" />
+            資料還原成功！所有學習紀錄已載入。
+          </motion.div>
+        )}
+
+        {importStatus === "error" && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 text-red-700 bg-red-50 rounded-2xl px-3 py-2 text-xs font-bold"
+          >
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            {errorMsg}
+          </motion.div>
+        )}
+
+        {importStatus === "idle" && (
+          <div className="text-[11px] text-muted-foreground/70 space-y-0.5">
+            <p>📦 包含：科目、學習計畫、複習紀錄、理解程度、完成狀態</p>
+            {lastBackup && <p className="text-green-600 font-medium">✅ 上次匯出：{lastBackup}</p>}
+          </div>
+        )}
+      </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent className="rounded-[28px] border-none shadow-2xl w-[88%] sm:max-w-md mx-auto p-6">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-center">確定要還原資料嗎？</AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-sm mt-2 space-y-1">
+              <span className="block">
+                這個動作會
+                <span className="text-red-500 font-bold">覆蓋目前所有資料</span>，
+                包含科目與學習紀錄。
+              </span>
+              {pendingData && (
+                <span className="block mt-2 bg-muted rounded-2xl px-3 py-2 text-xs text-foreground font-medium">
+                  備份日期：{new Date(pendingData.exportedAt).toLocaleString("zh-TW")}
+                  <br />
+                  科目數：{pendingData.subjects.length}　學習計畫：{pendingData.sessions.length}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col mt-2">
+            <AlertDialogAction
+              onClick={handleConfirmImport}
+              className="w-full h-12 rounded-2xl font-bold bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              確定還原
+            </AlertDialogAction>
+            <AlertDialogCancel className="w-full h-12 rounded-2xl font-bold border-2 mt-0">
+              取消
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 export default function Subjects() {
-  const { subjects, saveSubjects, isLoaded } = useData();
+  const { subjects, sessions, saveSubjects, saveSessions, isLoaded } = useData();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
+
   const [name, setName] = useState("");
   const [color, setColor] = useState(COLORS[0]);
   const [emoji, setEmoji] = useState(EMOJIS[0]);
@@ -50,7 +244,7 @@ export default function Subjects() {
     if (!name.trim()) return;
 
     if (editingId) {
-      saveSubjects(subjects.map(s => 
+      saveSubjects(subjects.map(s =>
         s.id === editingId ? { ...s, name, color, emoji } : s
       ));
     } else {
@@ -66,17 +260,23 @@ export default function Subjects() {
     saveSubjects(subjects.filter(s => s.id !== id));
   };
 
+  const handleImport = (data: BackupData) => {
+    saveSubjects(data.subjects);
+    saveSessions(data.sessions);
+    localStorage.setItem("kr_last_backup", `還原於 ${new Date().toLocaleString("zh-TW")}`);
+  };
+
   if (!isLoaded) return null;
 
   return (
     <Layout>
       <div className="p-6 pb-24">
-        <div className="flex items-center justify-between mb-8 pt-4">
+        <div className="flex items-center justify-between mb-5 pt-4">
           <header>
             <h1 className="text-3xl font-bold text-foreground">科目管理</h1>
             <p className="text-muted-foreground mt-1 font-medium">設定你的學習夥伴</p>
           </header>
-          
+
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <Button onClick={handleOpenAdd} size="icon" className="w-14 h-14 rounded-full shadow-lg hover:scale-105 transition-transform">
@@ -89,13 +289,13 @@ export default function Subjects() {
                   {editingId ? "編輯科目" : "新增科目"}
                 </DialogTitle>
               </DialogHeader>
-              
+
               <div className="space-y-6 py-4">
                 <div className="space-y-3">
                   <label className="text-sm font-bold text-muted-foreground ml-2">科目名稱</label>
-                  <Input 
-                    value={name} 
-                    onChange={e => setName(e.target.value)} 
+                  <Input
+                    value={name}
+                    onChange={e => setName(e.target.value)}
                     placeholder="例如：數學、英文..."
                     className="h-14 px-5 text-lg font-bold rounded-2xl bg-muted/50 border-transparent focus-visible:ring-primary shadow-inner"
                   />
@@ -150,6 +350,8 @@ export default function Subjects() {
             </DialogContent>
           </Dialog>
         </div>
+
+        <BackupCard subjects={subjects} sessions={sessions} onImport={handleImport} />
 
         <div className="grid grid-cols-3 gap-2.5">
           <AnimatePresence>
