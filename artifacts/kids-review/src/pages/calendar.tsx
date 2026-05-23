@@ -77,33 +77,19 @@ export default function CalendarPage() {
             .rdp-table { width: 100%; max-width: 320px; margin: 0 auto; }
             .rdp-caption { margin-bottom: 1rem; }
             .rdp-caption_label { font-size: 1.25rem; font-weight: 800; }
+            .day-has-due { position: relative; }
+            .day-has-due::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; background: hsl(var(--primary)); pointer-events: none; }
+            .day-all-completed::after { background: #22c55e; }
           `}</style>
-          
+
           <DayPicker
             mode="single"
             selected={selectedDate}
             onSelect={(day) => day && handleDayClick(day)}
             modifiers={modifiers}
-            modifiersStyles={modifiersStyles}
-            components={{
-              DayContent: (props) => {
-                const dateStr = format(props.date, "yyyy-MM-dd");
-                const items = dueMap.get(dateStr) || [];
-                const hasDue = items.length > 0;
-                const allCompleted = hasDue && items.every(i => i.isCompleted);
-
-                return (
-                  <div className="relative w-full h-full flex items-center justify-center">
-                    <span className="z-10">{props.date.getDate()}</span>
-                    {hasDue && (
-                      <div className={cn(
-                        "absolute bottom-1 w-2 h-2 rounded-full",
-                        allCompleted ? "bg-green-500" : "bg-primary"
-                      )} />
-                    )}
-                  </div>
-                );
-              }
+            modifiersClassNames={{
+              hasDue: "day-has-due",
+              allCompleted: "day-all-completed",
             }}
           />
         </div>

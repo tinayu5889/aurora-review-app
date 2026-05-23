@@ -37,6 +37,7 @@ export default function AddLearning() {
       firstDate,
       reviewDates,
       completedDates: [],
+      records: [],
     };
 
     saveSessions([...sessions, newSession]);

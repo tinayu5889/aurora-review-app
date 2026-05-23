@@ -32,7 +32,7 @@ const INITIAL_SUBJECTS: Subject[] = [
 ];
 
 function migrateSession(s: ReviewSession): ReviewSession {
-  return { records: [], ...s };
+  return { ...s, records: s.records ?? [] };
 }
 
 export function useData() {
