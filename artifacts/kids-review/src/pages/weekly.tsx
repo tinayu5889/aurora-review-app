@@ -179,7 +179,7 @@ export default function Weekly() {
 
   const now = new Date();
   const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
-  const thisWeekEnd = now;
+  const thisWeekEnd = endOfWeek(now, { weekStartsOn: 1 });
   const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
   const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
 

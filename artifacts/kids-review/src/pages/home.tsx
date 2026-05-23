@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { format, differenceInCalendarDays, startOfWeek, isWithinInterval, parseISO } from "date-fns";
+import { format, differenceInCalendarDays, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Star, ChevronRight, FileText, Pencil, Clock, ArrowLeft, TrendingUp, CalendarCheck, AlertCircle } from "lucide-react";
 import { Layout } from "@/components/layout";
@@ -36,6 +36,7 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; emoji: string; col
 function WeeklyMiniCard({ sessions }: { sessions: ReviewSession[] }) {
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
 
   const stats = useMemo(() => {
     let count = 0;
@@ -43,7 +44,7 @@ function WeeklyMiniCard({ sessions }: { sessions: ReviewSession[] }) {
     const subs = new Set<string>();
     sessions.forEach(s => (s.records || []).forEach(r => {
       try {
-        if (isWithinInterval(parseISO(r.date), { start: weekStart, end: now })) {
+        if (isWithinInterval(parseISO(r.date), { start: weekStart, end: weekEnd })) {
           count++; total += r.understanding; subs.add(s.subjectId);
         }
       } catch { /* skip */ }
@@ -64,7 +65,7 @@ function WeeklyMiniCard({ sessions }: { sessions: ReviewSession[] }) {
             <TrendingUp className="w-4 h-4 text-white/90" />
             <span className="text-white font-bold text-sm">本週複習報告</span>
             <span className="text-white/60 text-[11px] ml-auto">
-              {format(weekStart, "M/d")} – {format(now, "M/d")}
+              {format(weekStart, "M/d")} – {format(weekEnd, "M/d")}
             </span>
           </div>
           <div className="grid grid-cols-3 gap-2 mb-3">
