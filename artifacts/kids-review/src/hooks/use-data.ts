@@ -69,6 +69,7 @@ export function useData() {
   const saveSessions = (newSessions: ReviewSession[]) => {
     setSessions(newSessions);
     localStorage.setItem("kr_sessions", JSON.stringify(newSessions));
+    window.dispatchEvent(new Event("kr-sessions-updated"));
   };
 
   return {
