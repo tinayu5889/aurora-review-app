@@ -3,13 +3,19 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Star, CalendarDays, TrendingUp, Pencil } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, ReviewRecord, ReviewSession } from "@/hooks/use-data";
+import { useData, ReviewRecord, ReviewSession, LearningType } from "@/hooks/use-data";
 import { EditSessionSheet } from "@/components/edit-session-sheet";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Difficulty = "easy" | "normal" | "hard";
+
+const LEARNING_TYPE_LABELS: Record<LearningType, { emoji: string; label: string }> = {
+  video:   { emoji: "🎬", label: "看影片" },
+  quiz:    { emoji: "📝", label: "測驗題" },
+  reading: { emoji: "📖", label: "閱讀"   },
+};
 
 const DIFFICULTY_MAP: Record<Difficulty, { label: string; color: string }> = {
   easy: { label: "很簡單", color: "text-green-600 bg-green-100" },
@@ -171,8 +177,9 @@ export default function History() {
                           {subject?.emoji}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{subject?.name}</span>
+                            {(() => { const lt = LEARNING_TYPE_LABELS[session.learningType ?? "reading"]; return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">{lt.emoji} {lt.label}</span>; })()}
                             {isAllDone && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">全部完成</span>}
                             {hasOverdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">有逾期</span>}
                           </div>

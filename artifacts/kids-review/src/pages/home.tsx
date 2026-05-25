@@ -3,7 +3,7 @@ import { format, differenceInCalendarDays, startOfWeek, endOfWeek, isWithinInter
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Star, ChevronRight, FileText, Pencil, Clock, ArrowLeft, TrendingUp, CalendarCheck, BookOpen } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, ReviewRecord, ReviewSession } from "@/hooks/use-data";
+import { useData, ReviewRecord, ReviewSession, LearningType } from "@/hooks/use-data";
 import { adjustNextDate } from "@/lib/spaced-repetition";
 import { EditSessionSheet } from "@/components/edit-session-sheet";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,12 @@ import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+
+const LEARNING_TYPE_LABELS: Record<LearningType, { emoji: string; label: string }> = {
+  video:   { emoji: "🎬", label: "看影片" },
+  quiz:    { emoji: "📝", label: "測驗題" },
+  reading: { emoji: "📖", label: "閱讀"   },
+};
 
 type DueItem = {
   sessionId: string;
@@ -265,6 +271,7 @@ function TaskCard({ item, onCardClick, onCompleteClick, isAnimating }: {
         <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
           <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-muted text-muted-foreground truncate max-w-[70px]">{item.subject?.name}</span>
           <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">第 {item.round} 次</span>
+          <span className="text-[11px] font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">📝 測驗題</span>
           {item.isOverdue && <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">逾期 {item.overdueDays} 天</span>}
         </div>
         <h3 className="text-base font-bold truncate text-foreground">{item.scope}</h3>
@@ -524,7 +531,9 @@ export default function Home() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-muted-foreground mb-0.5">{subject?.name}</p>
                     <p className="text-base font-bold text-foreground truncate">{session.scope}</p>
-                    <p className="text-[11px] text-violet-500 font-medium mt-0.5">複習排程已自動建立 ✓</p>
+                    <p className="text-[11px] text-violet-500 font-medium mt-0.5">
+                      {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].emoji} {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].label} · 複習排程已自動建立 ✓
+                    </p>
                   </div>
                 </motion.div>
               ))}

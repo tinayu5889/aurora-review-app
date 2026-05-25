@@ -15,11 +15,14 @@ export type ReviewRecord = {
   completedAt: string;
 };
 
+export type LearningType = "video" | "quiz" | "reading";
+
 export type ReviewSession = {
   id: string;
   subjectId: string;
   scope: string;
   firstDate: string;
+  learningType: LearningType;
   reviewDates: string[];
   completedDates: string[];
   records: ReviewRecord[];
@@ -32,7 +35,7 @@ const INITIAL_SUBJECTS: Subject[] = [
 ];
 
 function migrateSession(s: ReviewSession): ReviewSession {
-  return { ...s, records: s.records ?? [] };
+  return { ...s, records: s.records ?? [], learningType: s.learningType ?? "reading" };
 }
 
 export function useData() {

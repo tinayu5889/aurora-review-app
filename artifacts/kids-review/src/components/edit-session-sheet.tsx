@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { ReviewSession, Subject, ReviewRecord } from "@/hooks/use-data";
+import { ReviewSession, Subject, ReviewRecord, LearningType } from "@/hooks/use-data";
 import { generateReviewDates } from "@/lib/spaced-repetition";
 
 type Difficulty = "easy" | "normal" | "hard";
@@ -40,10 +40,17 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
+const LEARNING_TYPE_OPTIONS: { value: LearningType; emoji: string; label: string }[] = [
+  { value: "video",   emoji: "🎬", label: "看影片" },
+  { value: "quiz",    emoji: "📝", label: "測驗題" },
+  { value: "reading", emoji: "📖", label: "閱讀"   },
+];
+
 type EditState = {
   subjectId: string;
   scope: string;
   firstDate: string;
+  learningType: LearningType;
   reviewDates: string[];
   completedDates: string[];
   records: ReviewRecord[];
@@ -54,6 +61,7 @@ function buildEditState(session: ReviewSession): EditState {
     subjectId: session.subjectId,
     scope: session.scope,
     firstDate: session.firstDate,
+    learningType: session.learningType ?? "reading",
     reviewDates: [...session.reviewDates],
     completedDates: [...session.completedDates],
     records: (session.records || []).map(r => ({ ...r })),
@@ -144,6 +152,7 @@ export function EditSessionSheet({ session, subjects, open, onClose, onSave, onD
       subjectId: state.subjectId,
       scope: state.scope.trim(),
       firstDate: state.firstDate,
+      learningType: state.learningType,
       reviewDates: state.reviewDates,
       completedDates: state.completedDates,
       records: state.records,
@@ -200,6 +209,28 @@ export function EditSessionSheet({ session, subjects, open, onClose, onSave, onD
                 className="h-12 rounded-2xl border-2 border-border/50 focus-visible:ring-primary text-base font-medium"
                 data-testid="edit-input-scope"
               />
+            </section>
+
+            {/* Learning type */}
+            <section className="mb-5">
+              <p className="text-sm font-bold text-muted-foreground mb-3">學習類型</p>
+              <div className="grid grid-cols-3 gap-2">
+                {LEARNING_TYPE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setState(s => s ? { ...s, learningType: opt.value } : s)}
+                    className={cn(
+                      "flex flex-col items-center justify-center py-3 rounded-2xl border-[3px] transition-all active:scale-95",
+                      state.learningType === opt.value
+                        ? "border-violet-400 bg-violet-50 text-violet-700 shadow-sm scale-105"
+                        : "bg-card border-border/50 text-foreground hover:bg-muted"
+                    )}
+                  >
+                    <span className="text-2xl mb-1">{opt.emoji}</span>
+                    <span className="text-xs font-bold">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
             </section>
 
             {/* First date */}
