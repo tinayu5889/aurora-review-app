@@ -1,6 +1,6 @@
-# [Project name]
+# Kiddo Study Planner
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+兒童間隔複習學習計畫 App，幫助小朋友用科學的間隔複習方法規劃學習內容。
 
 ## Run & Operate
 

@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "兒童複習 App"
+title = "Kiddo Study Planner"
 version = "1.0.0"
 id = "artifacts/kids-review"
 router = "path"
