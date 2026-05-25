@@ -353,45 +353,45 @@ export default function Subjects() {
 
         <BackupCard subjects={subjects} sessions={sessions} onImport={handleImport} />
 
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-2 gap-2">
           <AnimatePresence>
             {subjects.map((subject, index) => (
               <motion.div
                 key={subject.id}
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ delay: index * 0.04 }}
-                className={cn(
-                  "relative p-3 rounded-[20px] aspect-square flex flex-col items-center justify-center text-center group transition-transform active:scale-95 shadow-sm border-2 border-transparent hover:border-white/20",
-                  subject.color
-                )}
+                transition={{ delay: index * 0.03 }}
+                className="bg-card border border-border/50 rounded-2xl p-3 flex items-center gap-2.5 shadow-sm hover:shadow-md transition-all active:scale-[0.97]"
               >
-                <div className="absolute top-1.5 right-1.5 flex opacity-40 group-hover:opacity-100 transition-opacity">
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner", subject.color)}>
+                  {subject.emoji}
+                </div>
+
+                <span className="font-bold text-foreground text-sm flex-1 truncate leading-tight">
+                  {subject.name}
+                </span>
+
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => handleOpenEdit(subject)}
-                    className="w-7 h-7 rounded-full bg-white/40 hover:bg-white/60 flex items-center justify-center text-white backdrop-blur-sm mr-0.5 transition-colors"
+                    className="w-7 h-7 rounded-xl bg-muted hover:bg-primary/10 flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
                   >
-                    <Edit className="w-3 h-3" />
+                    <Edit className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDelete(subject.id)}
-                    className="w-7 h-7 rounded-full bg-white/40 hover:bg-red-500/80 flex items-center justify-center text-white backdrop-blur-sm transition-colors"
+                    className="w-7 h-7 rounded-xl bg-muted hover:bg-red-100 flex items-center justify-center text-muted-foreground hover:text-red-500 transition-colors"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-
-                <span className="text-4xl mb-2 drop-shadow-md">{subject.emoji}</span>
-                <span className="font-bold text-white text-[13px] px-1 drop-shadow-sm line-clamp-2 leading-tight">
-                  {subject.name}
-                </span>
               </motion.div>
             ))}
           </AnimatePresence>
 
           {subjects.length === 0 && (
-            <div className="col-span-3 text-center py-12">
+            <div className="col-span-2 text-center py-12">
               <div className="w-20 h-20 bg-muted rounded-[28px] rotate-12 flex items-center justify-center mx-auto mb-5 shadow-sm">
                 <Book className="w-10 h-10 text-muted-foreground -rotate-12" />
               </div>
