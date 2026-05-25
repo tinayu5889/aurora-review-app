@@ -343,8 +343,13 @@ export default function Home() {
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayDate = new Date(todayStr + "T00:00:00");
 
-  const { todayItems, overdueItems } = useMemo(() => {
-    if (!isLoaded) return { todayItems: [], overdueItems: [] };
+  const { todayItems, overdueItems, studyPlanItems } = useMemo(() => {
+    if (!isLoaded) return { todayItems: [], overdueItems: [], studyPlanItems: [] };
+
+    const studyPlanItems = sessions
+      .filter(s => s.firstDate === todayStr)
+      .map(s => ({ session: s, subject: subjects.find(sub => sub.id === s.subjectId) }));
+
     const allPending: DueItem[] = sessions.flatMap(session =>
       session.reviewDates.flatMap((date, index) => {
         if (date > todayStr) return [];
@@ -358,6 +363,7 @@ export default function Home() {
     return {
       todayItems: allPending.filter(i => !i.isOverdue),
       overdueItems: allPending.filter(i => i.isOverdue).sort((a, b) => a.date.localeCompare(b.date)),
+      studyPlanItems,
     };
   }, [sessions, subjects, todayStr, isLoaded, animatingIds]);
 
@@ -406,10 +412,10 @@ export default function Home() {
                 {/* 今日讀書計畫 */}
                 <EntryCard
                   delay={0.00}
-                  icon={<BookOpen className="w-7 h-7 text-muted-foreground" />}
+                  icon={<BookOpen className={cn("w-7 h-7", studyPlanItems.length > 0 ? "text-white" : "text-muted-foreground")} />}
                   title="今日讀書計畫"
-                  count={0}
-                  subtitle="今天要完成哪些學習任務呢？"
+                  count={studyPlanItems.length}
+                  subtitle={studyPlanItems.length > 0 ? `今天有 ${studyPlanItems.length} 個新學習內容，加油！` : "今天還沒有讀書計畫，去新增一個吧！"}
                   color="bg-violet-400"
                   onClick={() => setModal("study-plan")}
                 />
@@ -477,27 +483,61 @@ export default function Home() {
       <DetailSheet item={detailItem} open={!!detailItem} onClose={() => setDetailItem(null)} records={detailItem ? getSessionRecords(detailItem.sessionId) : []} onEditClick={() => setEditingSession(getSession(detailItem))} />
       <EditSessionSheet session={editingSession} subjects={subjects} open={!!editingSession} onClose={() => setEditingSession(null)} onSave={handleEditSave} onDelete={handleDelete} />
 
-      {/* 今日讀書計畫 — 功能開發中 */}
+      {/* 今日讀書計畫 Sheet */}
       <Sheet open={modal === "study-plan"} onOpenChange={v => !v && setModal(null)}>
-        <SheetContent side="bottom" className="rounded-t-[32px] pb-12 px-6 sm:max-w-md sm:mx-auto border-none shadow-2xl">
-          <SheetHeader className="mb-6 mt-2">
+        <SheetContent side="bottom" className="rounded-t-[32px] pb-10 px-6 sm:max-w-md sm:mx-auto border-none shadow-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader className="mb-5 mt-2">
             <div className="w-10 h-1.5 bg-muted rounded-full mx-auto mb-4" />
-            <div className="w-16 h-16 rounded-3xl bg-violet-100 flex items-center justify-center mx-auto mb-3">
-              <BookOpen className="w-8 h-8 text-violet-500" />
-            </div>
             <SheetTitle className="text-2xl font-bold text-center">今日讀書計畫</SheetTitle>
+            <p className="text-center text-muted-foreground text-sm font-medium">
+              {format(new Date(), "M 月 d 日")} 的新學習內容
+            </p>
           </SheetHeader>
-          <div className="text-center space-y-3 pb-2">
-            <p className="text-muted-foreground font-medium text-base leading-relaxed">
-              這個功能正在努力製作中 🛠️
-            </p>
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              很快就可以在這裡規劃今天要讀哪些內容，敬請期待！
-            </p>
-            <Button onClick={() => setModal(null)} className="w-full h-12 mt-4 rounded-full font-bold text-base">
-              好的，我知道了！
-            </Button>
-          </div>
+
+          {studyPlanItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
+              <div className="w-20 h-20 rounded-[32px] bg-violet-100 flex items-center justify-center mb-1">
+                <BookOpen className="w-10 h-10 text-violet-400" />
+              </div>
+              <p className="text-foreground font-bold text-base">今天還沒有讀書計畫</p>
+              <p className="text-muted-foreground text-sm">去新增一個學習內容，系統會自動幫你安排複習！</p>
+              <Button
+                onClick={() => { setModal(null); setTimeout(() => window.location.assign("/add"), 150); }}
+                className="mt-2 rounded-full font-bold px-6 bg-violet-500 hover:bg-violet-600"
+              >
+                <BookOpen className="w-4 h-4 mr-2" />新增讀書計畫
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3 mb-5">
+              {studyPlanItems.map(({ session, subject }, i) => (
+                <motion.div
+                  key={session.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="flex items-center gap-3 bg-card border-2 border-violet-100 rounded-2xl p-4"
+                >
+                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 shadow-inner", subject?.color || "bg-muted")}>
+                    {subject?.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-muted-foreground mb-0.5">{subject?.name}</p>
+                    <p className="text-base font-bold text-foreground truncate">{session.scope}</p>
+                    <p className="text-[11px] text-violet-500 font-medium mt-0.5">複習排程已自動建立 ✓</p>
+                  </div>
+                </motion.div>
+              ))}
+
+              <Button
+                onClick={() => { setModal(null); setTimeout(() => window.location.assign("/add"), 150); }}
+                variant="outline"
+                className="w-full h-12 rounded-2xl font-bold border-2 border-violet-200 text-violet-600 hover:bg-violet-50 mt-1"
+              >
+                <BookOpen className="w-4 h-4 mr-2" />再新增一個
+              </Button>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     </Layout>
