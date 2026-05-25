@@ -1,6 +1,6 @@
 import { addDays, format } from "date-fns";
 
-export const SPACED_REPETITION_INTERVALS = [1, 3, 7, 7, 7, 14, 30, 45, 60];
+export const SPACED_REPETITION_INTERVALS = [1, 2, 3, 5, 7, 14, 14, 30];
 
 export function generateReviewDates(firstDateStr: string): string[] {
   const dates: string[] = [];
