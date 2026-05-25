@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format, differenceInCalendarDays, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Star, ChevronRight, FileText, Pencil, Clock, ArrowLeft, TrendingUp, CalendarCheck, AlertCircle } from "lucide-react";
+import { Check, Star, ChevronRight, FileText, Pencil, Clock, ArrowLeft, TrendingUp, CalendarCheck, BookOpen } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useData, ReviewRecord, ReviewSession } from "@/hooks/use-data";
 import { adjustNextDate } from "@/lib/spaced-repetition";
@@ -25,6 +25,7 @@ type DueItem = {
 
 type Difficulty = "easy" | "normal" | "hard";
 type HomeView = "summary" | "today" | "overdue";
+type ModalType = "study-plan" | null;
 
 const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; emoji: string; color: string }[] = [
   { value: "easy", label: "很簡單", emoji: "😄", color: "bg-green-100 border-green-400 text-green-700" },
@@ -337,6 +338,7 @@ export default function Home() {
   const [detailItem, setDetailItem] = useState<DueItem | null>(null);
   const [editingSession, setEditingSession] = useState<ReviewSession | null>(null);
   const [animatingIds, setAnimatingIds] = useState<string[]>([]);
+  const [modal, setModal] = useState<ModalType>(null);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayDate = new Date(todayStr + "T00:00:00");
@@ -401,24 +403,35 @@ export default function Home() {
               </header>
 
               <div className="space-y-3 mb-6">
-                {/* 今日複習 */}
+                {/* 今日讀書計畫 */}
                 <EntryCard
-                  delay={0.04}
+                  delay={0.00}
+                  icon={<BookOpen className="w-7 h-7 text-muted-foreground" />}
+                  title="今日讀書計畫"
+                  count={0}
+                  subtitle="今天要完成哪些學習任務呢？"
+                  color="bg-violet-400"
+                  onClick={() => setModal("study-plan")}
+                />
+
+                {/* 要記得複習唷 */}
+                <EntryCard
+                  delay={0.05}
                   icon={<CalendarCheck className={cn("w-7 h-7", todayItems.length > 0 ? "text-white" : "text-muted-foreground")} />}
-                  title="今日複習"
+                  title="要記得複習唷"
                   count={todayItems.length}
-                  subtitle={todayItems.length > 0 ? `${todayItems.length} 個任務等你完成` : "今天沒有新任務，讚！"}
+                  subtitle={todayItems.length > 0 ? "今天有複習任務，記得完成！" : "今天沒有複習任務，輕鬆一下！"}
                   color="bg-primary"
                   onClick={() => setView("today")}
                 />
 
-                {/* 逾期待複習 */}
+                {/* 你還記得嗎？ */}
                 <EntryCard
-                  delay={0.09}
+                  delay={0.10}
                   icon={<Clock className={cn("w-7 h-7", overdueItems.length > 0 ? "text-white" : "text-muted-foreground")} />}
-                  title="逾期待複習"
+                  title="你還記得嗎？"
                   count={overdueItems.length}
-                  subtitle={overdueItems.length > 0 ? `${overdueItems.length} 個任務待處理` : "沒有逾期任務，太棒了！"}
+                  subtitle={overdueItems.length > 0 ? "這些內容有點久沒碰了，一起回想看看！" : "目前沒有需要補複習的內容，太棒了！"}
                   color="bg-red-400"
                   onClick={() => setView("overdue")}
                 />
@@ -463,6 +476,30 @@ export default function Home() {
       <RecordSheet item={pendingItem} open={!!pendingItem} onClose={() => setPendingItem(null)} onSave={handleSaveRecord} />
       <DetailSheet item={detailItem} open={!!detailItem} onClose={() => setDetailItem(null)} records={detailItem ? getSessionRecords(detailItem.sessionId) : []} onEditClick={() => setEditingSession(getSession(detailItem))} />
       <EditSessionSheet session={editingSession} subjects={subjects} open={!!editingSession} onClose={() => setEditingSession(null)} onSave={handleEditSave} onDelete={handleDelete} />
+
+      {/* 今日讀書計畫 — 功能開發中 */}
+      <Sheet open={modal === "study-plan"} onOpenChange={v => !v && setModal(null)}>
+        <SheetContent side="bottom" className="rounded-t-[32px] pb-12 px-6 sm:max-w-md sm:mx-auto border-none shadow-2xl">
+          <SheetHeader className="mb-6 mt-2">
+            <div className="w-10 h-1.5 bg-muted rounded-full mx-auto mb-4" />
+            <div className="w-16 h-16 rounded-3xl bg-violet-100 flex items-center justify-center mx-auto mb-3">
+              <BookOpen className="w-8 h-8 text-violet-500" />
+            </div>
+            <SheetTitle className="text-2xl font-bold text-center">今日讀書計畫</SheetTitle>
+          </SheetHeader>
+          <div className="text-center space-y-3 pb-2">
+            <p className="text-muted-foreground font-medium text-base leading-relaxed">
+              這個功能正在努力製作中 🛠️
+            </p>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              很快就可以在這裡規劃今天要讀哪些內容，敬請期待！
+            </p>
+            <Button onClick={() => setModal(null)} className="w-full h-12 mt-4 rounded-full font-bold text-base">
+              好的，我知道了！
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </Layout>
   );
 }
