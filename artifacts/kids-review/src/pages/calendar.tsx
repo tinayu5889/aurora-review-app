@@ -136,69 +136,101 @@ export default function CalendarPage() {
           {/* Calendar */}
           <div className="bg-card rounded-3xl p-6 border border-border/50 shadow-sm mb-6">
             <style>{`
-              .rdp { --rdp-cell-size: 40px; margin: 0; width: 100%; }
+              .rdp { --rdp-cell-size: 46px; margin: 0; width: 100%; }
               .rdp-months { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; width: 100%; }
               .rdp-month { width: 100%; }
               .rdp-table { width: 100%; }
               .rdp-caption { margin-bottom: 1rem; }
               .rdp-caption_label { font-size: 1.1rem; font-weight: 800; }
               .rdp-head_cell { font-weight: 700; color: var(--color-muted-foreground); padding-bottom: 0.75rem; text-transform: uppercase; font-size: 0.75rem; }
+              .rdp-button { position: relative; }
               .rdp-button:hover:not([disabled]):not(.rdp-day_selected) { background-color: hsl(var(--muted)); border-radius: 10px; }
               .rdp-day_selected { background-color: hsl(var(--primary)); color: white; font-weight: bold; border-radius: 10px; }
               .rdp-day_selected:hover { background-color: hsl(var(--primary)); opacity: 0.9; }
               .rdp-day_today:not(.rdp-day_selected) { font-weight: 800; color: hsl(var(--primary)); }
               .rdp-nav_button { border-radius: 10px; }
 
-              /* Plan: red dot */
-              .day-has-plan { position: relative; }
-              .day-has-plan:not(.day-has-review)::after {
-                content: '';
-                position: absolute;
-                bottom: 2px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 5px; height: 5px;
-                border-radius: 50%;
+              /* ── All markers below the date number, at bottom: 3px ──
+                 ::after  → coloured dots (red / green)
+                 ::before → ✕ symbol (amber)
+                 7 combinations handled without overlap                    */
+
+              /* 1. Plan only → red dot centered */
+              .day-has-plan:not(.day-has-review):not(.day-excluded)::after {
+                content: ''; position: absolute;
+                bottom: 3px; left: 50%; transform: translateX(-50%);
+                width: 5px; height: 5px; border-radius: 50%;
+                background: #ef4444; pointer-events: none;
+              }
+
+              /* 2. Review only → green dot centered */
+              .day-has-review:not(.day-has-plan):not(.day-excluded)::after {
+                content: ''; position: absolute;
+                bottom: 3px; left: 50%; transform: translateX(-50%);
+                width: 5px; height: 5px; border-radius: 50%;
+                background: #22c55e; pointer-events: none;
+              }
+
+              /* 3. Plan + Review → red dot + green dot centered */
+              .day-has-plan.day-has-review:not(.day-excluded)::after {
+                content: ''; position: absolute;
+                bottom: 3px; left: calc(50% - 6px);
+                width: 5px; height: 5px; border-radius: 50%;
                 background: #ef4444;
+                box-shadow: 9px 0 0 0 #22c55e;
                 pointer-events: none;
               }
-              /* Review: green dot */
-              .day-has-review { position: relative; }
-              .day-has-review:not(.day-has-plan)::after {
-                content: '';
-                position: absolute;
-                bottom: 2px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 5px; height: 5px;
-                border-radius: 50%;
-                background: #22c55e;
-                pointer-events: none;
+
+              /* 4. Excluded only → ✕ centered */
+              .day-excluded:not(.day-has-plan):not(.day-has-review)::before {
+                content: '✕'; position: absolute;
+                bottom: 2px; left: 50%; transform: translateX(-50%);
+                font-size: 7px; font-weight: 900;
+                color: #d97706; line-height: 1; pointer-events: none;
               }
-              /* Both: two dots */
-              .day-has-plan.day-has-review::after {
-                content: '';
-                position: absolute;
-                bottom: 2px;
-                left: calc(50% - 5px);
-                width: 5px; height: 5px;
-                border-radius: 50%;
+
+              /* 5. Excluded + Plan → red dot left · ✕ right */
+              .day-excluded.day-has-plan:not(.day-has-review)::after {
+                content: ''; position: absolute;
+                bottom: 3px; left: calc(50% - 7px);
+                width: 5px; height: 5px; border-radius: 50%;
+                background: #ef4444; pointer-events: none;
+              }
+              .day-excluded.day-has-plan:not(.day-has-review)::before {
+                content: '✕'; position: absolute;
+                bottom: 2px; left: calc(50% + 3px);
+                font-size: 7px; font-weight: 900;
+                color: #d97706; line-height: 1; pointer-events: none;
+              }
+
+              /* 6. Excluded + Review → green dot left · ✕ right */
+              .day-excluded.day-has-review:not(.day-has-plan)::after {
+                content: ''; position: absolute;
+                bottom: 3px; left: calc(50% - 7px);
+                width: 5px; height: 5px; border-radius: 50%;
+                background: #22c55e; pointer-events: none;
+              }
+              .day-excluded.day-has-review:not(.day-has-plan)::before {
+                content: '✕'; position: absolute;
+                bottom: 2px; left: calc(50% + 3px);
+                font-size: 7px; font-weight: 900;
+                color: #d97706; line-height: 1; pointer-events: none;
+              }
+
+              /* 7. Excluded + Plan + Review → red · green dots left · ✕ right */
+              .day-excluded.day-has-plan.day-has-review::after {
+                content: ''; position: absolute;
+                bottom: 3px; left: calc(50% - 10px);
+                width: 5px; height: 5px; border-radius: 50%;
                 background: #ef4444;
-                box-shadow: 8px 0 0 0 #22c55e;
+                box-shadow: 9px 0 0 0 #22c55e;
                 pointer-events: none;
               }
-              /* Excluded: X top-right corner */
-              .day-excluded { position: relative; }
-              .day-excluded::before {
-                content: '✕';
-                position: absolute;
-                top: 0;
-                right: 1px;
-                font-size: 7px;
-                font-weight: 900;
-                color: #d97706;
-                line-height: 1.3;
-                pointer-events: none;
+              .day-excluded.day-has-plan.day-has-review::before {
+                content: '✕'; position: absolute;
+                bottom: 2px; left: calc(50% + 8px);
+                font-size: 7px; font-weight: 900;
+                color: #d97706; line-height: 1; pointer-events: none;
               }
             `}</style>
 
