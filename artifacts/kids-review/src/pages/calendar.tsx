@@ -84,8 +84,18 @@ export default function CalendarPage() {
     [selectedDateStr, excludedPeriods]
   );
 
-  /* ── Goals: only show non-completed; click circle → confirm → delete ── */
-  const activeGoals = useMemo(() => goals.filter(g => !g.isCompleted), [goals]);
+  /* ── Goals: only show non-completed, sorted by targetDate asc (no date → last) ── */
+  const activeGoals = useMemo(() =>
+    goals
+      .filter(g => !g.isCompleted)
+      .sort((a, b) => {
+        if (a.targetDate && b.targetDate) return a.targetDate.localeCompare(b.targetDate);
+        if (a.targetDate) return -1;
+        if (b.targetDate) return 1;
+        return 0;
+      }),
+    [goals]
+  );
 
   const handleConfirmComplete = () => {
     if (!confirmGoal) return;
@@ -311,7 +321,7 @@ export default function CalendarPage() {
                 <p className="text-sm text-muted-foreground font-medium leading-relaxed">目前沒有學習目標</p>
               </div>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {activeGoals.map(goal => (
                   <li key={goal.id} className="flex items-start gap-3 py-2.5 px-1 group">
                     <button
@@ -321,9 +331,16 @@ export default function CalendarPage() {
                     >
                       <Circle className="w-5 h-5 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
                     </button>
-                    <span className="text-sm font-medium text-foreground leading-snug">
-                      {goal.content}
-                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground leading-snug">
+                        {goal.content}
+                      </p>
+                      {goal.targetDate && (
+                        <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                          截止：{goal.targetDate.replace(/-/g, "/").replace(/^(\d{4})\/(\d{2})\/(\d{2})$/, "$1/$2/$3")}
+                        </p>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
