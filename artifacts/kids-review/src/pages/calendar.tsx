@@ -6,8 +6,17 @@ import "react-day-picker/dist/style.css";
 import { BookOpen, CalendarCheck, CheckCircle2, Circle, Target } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useData, Goal } from "@/hooks/use-data";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+
+/* ── Custom DayButton type (avoids fragile DayButtonProps import) ── */
+type DayButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  day: { date: Date };
+  modifiers: Record<string, boolean>;
+};
 
 export default function CalendarPage() {
   const { subjects, sessions, excludedPeriods, goals, saveGoals, isLoaded } = useData();
@@ -54,7 +63,89 @@ export default function CalendarPage() {
     return s;
   }, [excludedPeriods, isLoaded]);
 
-  /* ── Modifiers ── */
+  /* ── Custom DayButton: flex-column layout, markers as real DOM nodes ── */
+  const DayButton = useMemo(() => {
+    return function CustomDayButton({ day, modifiers, className, style, ...buttonProps }: DayButtonProps) {
+      const dateStr = format(day.date, "yyyy-MM-dd");
+      const hasPlan    = planDaysSet.has(dateStr);
+      const hasReview  = reviewDaysMap.has(dateStr);
+      const isExcluded = excludedDaysSet.has(dateStr);
+
+      return (
+        <button
+          className={className}
+          style={{
+            ...style,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+            padding: "4px 0 3px",
+          }}
+          {...buttonProps}
+        >
+          {/* Date number */}
+          <span style={{ lineHeight: 1, fontSize: "inherit", fontWeight: "inherit" }}>
+            {day.date.getDate()}
+          </span>
+
+          {/* Marker row — always reserves 7px so cell height stays constant */}
+          <span
+            style={{
+              height: 7,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+              minWidth: 1,
+            }}
+          >
+            {hasPlan && (
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 5,
+                  height: 5,
+                  borderRadius: "50%",
+                  background: "#ef4444",
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            {hasReview && (
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 5,
+                  height: 5,
+                  borderRadius: "50%",
+                  background: "#22c55e",
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            {isExcluded && (
+              <span
+                style={{
+                  display: "inline-block",
+                  fontSize: 8,
+                  fontWeight: 900,
+                  color: "#d97706",
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                ✕
+              </span>
+            )}
+          </span>
+        </button>
+      );
+    };
+  }, [planDaysSet, reviewDaysMap, excludedDaysSet]);
+
+  /* ── Modifiers (still used by DayPicker for its own logic) ── */
   const modifiers = {
     hasPlan:    (date: Date) => planDaysSet.has(format(date, "yyyy-MM-dd")),
     hasReview:  (date: Date) => reviewDaysMap.has(format(date, "yyyy-MM-dd")),
@@ -84,7 +175,7 @@ export default function CalendarPage() {
     [selectedDateStr, excludedPeriods]
   );
 
-  /* ── Goals: only show non-completed, sorted by targetDate asc (no date → last) ── */
+  /* ── Goals panel ── */
   const activeGoals = useMemo(() =>
     goals
       .filter(g => !g.isCompleted)
@@ -107,7 +198,6 @@ export default function CalendarPage() {
 
   return (
     <Layout>
-      {/* Two-column layout: left = calendar+detail, right = goals panel */}
       <div className="flex h-full">
 
         {/* ── Left: scrollable calendar + detail ── */}
@@ -136,102 +226,20 @@ export default function CalendarPage() {
           {/* Calendar */}
           <div className="bg-card rounded-3xl p-6 border border-border/50 shadow-sm mb-6">
             <style>{`
-              .rdp { --rdp-cell-size: 46px; margin: 0; width: 100%; }
+              .rdp { --rdp-cell-size: 48px; margin: 0; width: 100%; }
               .rdp-months { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; width: 100%; }
               .rdp-month { width: 100%; }
               .rdp-table { width: 100%; }
               .rdp-caption { margin-bottom: 1rem; }
               .rdp-caption_label { font-size: 1.1rem; font-weight: 800; }
               .rdp-head_cell { font-weight: 700; color: var(--color-muted-foreground); padding-bottom: 0.75rem; text-transform: uppercase; font-size: 0.75rem; }
-              .rdp-button { position: relative; }
-              .rdp-button:hover:not([disabled]):not(.rdp-day_selected) { background-color: hsl(var(--muted)); border-radius: 10px; }
-              .rdp-day_selected { background-color: hsl(var(--primary)); color: white; font-weight: bold; border-radius: 10px; }
-              .rdp-day_selected:hover { background-color: hsl(var(--primary)); opacity: 0.9; }
-              .rdp-day_today:not(.rdp-day_selected) { font-weight: 800; color: hsl(var(--primary)); }
+              .rdp-button:hover:not([disabled]):not(.rdp-selected) { background-color: hsl(var(--muted)); border-radius: 10px; }
+              .rdp-day_button:hover:not([disabled]) { background-color: hsl(var(--muted)); border-radius: 10px; }
+              .rdp-selected .rdp-day_button,
+              .rdp-day_button.rdp-selected { background-color: hsl(var(--primary)); color: white; font-weight: bold; border-radius: 10px; }
+              .rdp-today:not(.rdp-selected) .rdp-day_button,
+              .rdp-day_button.rdp-today:not(.rdp-selected) { font-weight: 800; color: hsl(var(--primary)); }
               .rdp-nav_button { border-radius: 10px; }
-
-              /* ── All markers below the date number, at bottom: 3px ──
-                 ::after  → coloured dots (red / green)
-                 ::before → ✕ symbol (amber)
-                 7 combinations handled without overlap                    */
-
-              /* 1. Plan only → red dot centered */
-              .day-has-plan:not(.day-has-review):not(.day-excluded)::after {
-                content: ''; position: absolute;
-                bottom: 3px; left: 50%; transform: translateX(-50%);
-                width: 5px; height: 5px; border-radius: 50%;
-                background: #ef4444; pointer-events: none;
-              }
-
-              /* 2. Review only → green dot centered */
-              .day-has-review:not(.day-has-plan):not(.day-excluded)::after {
-                content: ''; position: absolute;
-                bottom: 3px; left: 50%; transform: translateX(-50%);
-                width: 5px; height: 5px; border-radius: 50%;
-                background: #22c55e; pointer-events: none;
-              }
-
-              /* 3. Plan + Review → red dot + green dot centered */
-              .day-has-plan.day-has-review:not(.day-excluded)::after {
-                content: ''; position: absolute;
-                bottom: 3px; left: calc(50% - 6px);
-                width: 5px; height: 5px; border-radius: 50%;
-                background: #ef4444;
-                box-shadow: 9px 0 0 0 #22c55e;
-                pointer-events: none;
-              }
-
-              /* 4. Excluded only → ✕ centered */
-              .day-excluded:not(.day-has-plan):not(.day-has-review)::before {
-                content: '✕'; position: absolute;
-                bottom: 2px; left: 50%; transform: translateX(-50%);
-                font-size: 7px; font-weight: 900;
-                color: #d97706; line-height: 1; pointer-events: none;
-              }
-
-              /* 5. Excluded + Plan → red dot left · ✕ right */
-              .day-excluded.day-has-plan:not(.day-has-review)::after {
-                content: ''; position: absolute;
-                bottom: 3px; left: calc(50% - 7px);
-                width: 5px; height: 5px; border-radius: 50%;
-                background: #ef4444; pointer-events: none;
-              }
-              .day-excluded.day-has-plan:not(.day-has-review)::before {
-                content: '✕'; position: absolute;
-                bottom: 2px; left: calc(50% + 3px);
-                font-size: 7px; font-weight: 900;
-                color: #d97706; line-height: 1; pointer-events: none;
-              }
-
-              /* 6. Excluded + Review → green dot left · ✕ right */
-              .day-excluded.day-has-review:not(.day-has-plan)::after {
-                content: ''; position: absolute;
-                bottom: 3px; left: calc(50% - 7px);
-                width: 5px; height: 5px; border-radius: 50%;
-                background: #22c55e; pointer-events: none;
-              }
-              .day-excluded.day-has-review:not(.day-has-plan)::before {
-                content: '✕'; position: absolute;
-                bottom: 2px; left: calc(50% + 3px);
-                font-size: 7px; font-weight: 900;
-                color: #d97706; line-height: 1; pointer-events: none;
-              }
-
-              /* 7. Excluded + Plan + Review → red · green dots left · ✕ right */
-              .day-excluded.day-has-plan.day-has-review::after {
-                content: ''; position: absolute;
-                bottom: 3px; left: calc(50% - 10px);
-                width: 5px; height: 5px; border-radius: 50%;
-                background: #ef4444;
-                box-shadow: 9px 0 0 0 #22c55e;
-                pointer-events: none;
-              }
-              .day-excluded.day-has-plan.day-has-review::before {
-                content: '✕'; position: absolute;
-                bottom: 2px; left: calc(50% + 8px);
-                font-size: 7px; font-weight: 900;
-                color: #d97706; line-height: 1; pointer-events: none;
-              }
             `}</style>
 
             <DayPicker
@@ -242,12 +250,8 @@ export default function CalendarPage() {
               selected={selectedDate}
               onSelect={day => day && setSelectedDate(day)}
               modifiers={modifiers}
-              modifiersClassNames={{
-                hasPlan: "day-has-plan",
-                hasReview: "day-has-review",
-                isExcluded: "day-excluded",
-              }}
               locale={zhTW}
+              components={{ DayButton } as Record<string, unknown>}
             />
           </div>
 
@@ -266,7 +270,7 @@ export default function CalendarPage() {
               </div>
 
               <div className="grid gap-6 sm:grid-cols-2">
-                {/* Section 1: Study Plan */}
+                {/* Study Plan */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <BookOpen className="w-4 h-4 text-rose-500" />
@@ -294,7 +298,7 @@ export default function CalendarPage() {
                   )}
                 </div>
 
-                {/* Section 2: Review Tasks */}
+                {/* Review Tasks */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <CalendarCheck className="w-4 h-4 text-emerald-500" />
@@ -335,7 +339,7 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* ── Right: Goals panel (sticky, full height) ── */}
+        {/* ── Right: Goals panel ── */}
         <aside className="w-64 shrink-0 border-l border-border/50 bg-card flex flex-col sticky top-0 h-screen overflow-y-auto">
           <div className="px-5 py-5 border-b border-border/40">
             <div className="flex items-center gap-2">
@@ -381,7 +385,7 @@ export default function CalendarPage() {
         </aside>
       </div>
 
-      {/* Confirm complete → delete dialog */}
+      {/* Confirm complete → delete */}
       <AlertDialog open={!!confirmGoal} onOpenChange={open => !open && setConfirmGoal(null)}>
         <AlertDialogContent className="rounded-3xl border-none shadow-2xl w-[88%] sm:max-w-sm mx-auto p-6">
           <AlertDialogHeader>
