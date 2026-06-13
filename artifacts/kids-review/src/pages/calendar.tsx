@@ -340,7 +340,7 @@ export default function CalendarPage() {
         </div>
 
         {/* ── Right: Goals panel ── */}
-        <aside className="w-64 shrink-0 border-l border-border/50 bg-card flex flex-col sticky top-0 h-screen overflow-y-auto">
+        <aside className="w-64 shrink-0 border-l border-border/50 bg-card flex flex-col sticky top-0 h-screen overflow-hidden">
           <div className="px-5 py-5 border-b border-border/40">
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4 text-primary shrink-0" />
