@@ -10,6 +10,8 @@ import AddLearning from "./pages/add";
 import CalendarPage from "./pages/calendar";
 import History from "./pages/history";
 import Weekly from "./pages/weekly";
+import Goals from "./pages/goals";
+import ExcludedDays from "./pages/excluded-days";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,8 @@ function Router() {
       <Route path="/calendar" component={CalendarPage} />
       <Route path="/history" component={History} />
       <Route path="/weekly" component={Weekly} />
+      <Route path="/goals" component={Goals} />
+      <Route path="/excluded-days" component={ExcludedDays} />
       <Route component={NotFound} />
     </Switch>
   );

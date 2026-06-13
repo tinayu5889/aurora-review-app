@@ -1,151 +1,279 @@
 import { useState, useMemo } from "react";
-import { format } from "date-fns";
+import { format, addDays, startOfMonth } from "date-fns";
+import { zhTW } from "date-fns/locale";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { Calendar, CheckCircle2, Circle } from "lucide-react";
+import { BookOpen, CalendarCheck, CheckCircle2, Circle } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useData } from "@/hooks/use-data";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 export default function CalendarPage() {
-  const { subjects, sessions, isLoaded } = useData();
+  const { subjects, sessions, excludedPeriods, isLoaded } = useData();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
-  const dueMap = useMemo(() => {
-    const map = new Map<string, any[]>();
-    if (!isLoaded) return map;
+  /* ── Build lookup sets ── */
+  const planDaysSet = useMemo(() => {
+    const s = new Set<string>();
+    if (!isLoaded) return s;
+    sessions.forEach(sess => s.add(sess.firstDate));
+    return s;
+  }, [sessions, isLoaded]);
 
+  const reviewDaysMap = useMemo(() => {
+    const m = new Map<string, { sessionId: string; scope: string; round: number; isCompleted: boolean; subject: ReturnType<typeof subjects.find> }[]>();
+    if (!isLoaded) return m;
     sessions.forEach(session => {
-      session.reviewDates.forEach((dateStr, index) => {
-        const item = {
+      session.reviewDates.forEach((dateStr, idx) => {
+        const existing = m.get(dateStr) ?? [];
+        m.set(dateStr, [...existing, {
           sessionId: session.id,
-          subject: subjects.find(s => s.id === session.subjectId),
           scope: session.scope,
-          round: index + 1,
-          isCompleted: session.completedDates.includes(dateStr)
-        };
-        const existing = map.get(dateStr) || [];
-        map.set(dateStr, [...existing, item]);
+          round: idx + 1,
+          isCompleted: session.completedDates.includes(dateStr),
+          subject: subjects.find(s => s.id === session.subjectId),
+        }]);
       });
     });
-    return map;
+    return m;
   }, [sessions, subjects, isLoaded]);
 
+  const excludedDaysSet = useMemo(() => {
+    const s = new Set<string>();
+    if (!isLoaded) return s;
+    excludedPeriods.forEach(p => {
+      let d = new Date(p.startDate + "T00:00:00");
+      const end = new Date(p.endDate + "T00:00:00");
+      while (d <= end) {
+        s.add(format(d, "yyyy-MM-dd"));
+        d = addDays(d, 1);
+      }
+    });
+    return s;
+  }, [excludedPeriods, isLoaded]);
+
+  /* ── Modifiers ── */
   const modifiers = {
-    hasDue: (date: Date) => {
-      const dateStr = format(date, "yyyy-MM-dd");
-      return (dueMap.get(dateStr) || []).length > 0;
-    },
-    allCompleted: (date: Date) => {
-      const dateStr = format(date, "yyyy-MM-dd");
-      const items = dueMap.get(dateStr) || [];
-      return items.length > 0 && items.every(item => item.isCompleted);
-    }
+    hasPlan:    (date: Date) => planDaysSet.has(format(date, "yyyy-MM-dd")),
+    hasReview:  (date: Date) => reviewDaysMap.has(format(date, "yyyy-MM-dd")),
+    isExcluded: (date: Date) => excludedDaysSet.has(format(date, "yyyy-MM-dd")),
   };
 
-  const modifiersStyles = {
-    hasDue: { fontWeight: "bold" },
-  };
-
-  const handleDayClick = (day: Date) => {
-    setSelectedDate(day);
-    setIsSheetOpen(true);
-  };
-
+  /* ── Selected date data ── */
   const selectedDateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
-  const selectedItems = dueMap.get(selectedDateStr) || [];
+
+  const planItems = useMemo(() =>
+    selectedDateStr ? sessions.filter(s => s.firstDate === selectedDateStr).map(s => ({
+      ...s,
+      subject: subjects.find(sub => sub.id === s.subjectId),
+    })) : [],
+    [selectedDateStr, sessions, subjects]
+  );
+
+  const reviewItems = useMemo(() =>
+    selectedDateStr ? (reviewDaysMap.get(selectedDateStr) ?? []) : [],
+    [selectedDateStr, reviewDaysMap]
+  );
+
+  const excludedNote = useMemo(() =>
+    selectedDateStr
+      ? (excludedPeriods.find(p => selectedDateStr >= p.startDate && selectedDateStr <= p.endDate) ?? null)
+      : null,
+    [selectedDateStr, excludedPeriods]
+  );
 
   return (
     <Layout>
-      <div className="p-6 pb-24 h-full flex flex-col">
-        <header className="mb-6 pt-4">
-          <h1 className="text-3xl font-bold text-foreground">複習月曆</h1>
-          <p className="text-muted-foreground mt-1 font-medium">看看未來的計畫吧！</p>
+      <div className="px-8 py-8 max-w-6xl">
+        <header className="mb-4">
+          <h1 className="text-2xl font-bold text-foreground">複習月曆</h1>
+          <p className="text-muted-foreground text-sm mt-1">看看未來的計畫安排</p>
         </header>
 
-        <div className="bg-card rounded-[32px] p-6 shadow-sm border border-border/50 flex-1">
+        {/* Legend */}
+        <div className="flex items-center gap-5 mb-5 flex-wrap text-sm font-semibold">
+          <span className="flex items-center gap-1.5 text-rose-600">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+            今日讀書計畫
+          </span>
+          <span className="flex items-center gap-1.5 text-emerald-600">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+            要記得複習唷
+          </span>
+          <span className="flex items-center gap-1.5 text-amber-600">
+            <span className="text-xs font-black leading-none">✕</span>
+            排除日
+          </span>
+        </div>
+
+        {/* Calendar */}
+        <div className="bg-card rounded-3xl p-6 border border-border/50 shadow-sm mb-6">
           <style>{`
-            .rdp { --rdp-cell-size: 42px; margin: 0; width: 100%; display: flex; justify-content: center; }
-            .rdp-button:hover:not([disabled]):not(.rdp-day_selected) { background-color: var(--color-muted); border-radius: 12px; }
-            .rdp-day_selected { background-color: var(--color-primary); color: white; font-weight: bold; border-radius: 12px; }
-            .rdp-day_selected:hover { background-color: var(--color-primary); opacity: 0.9; }
-            .rdp-head_cell { font-weight: 700; color: var(--color-muted-foreground); padding-bottom: 1rem; text-transform: uppercase; font-size: 0.8rem; }
-            .rdp-nav_button { border-radius: 12px; }
+            .rdp { --rdp-cell-size: 40px; margin: 0; width: 100%; }
+            .rdp-months { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; width: 100%; }
             .rdp-month { width: 100%; }
-            .rdp-table { width: 100%; max-width: 320px; margin: 0 auto; }
+            .rdp-table { width: 100%; }
             .rdp-caption { margin-bottom: 1rem; }
-            .rdp-caption_label { font-size: 1.25rem; font-weight: 800; }
-            .day-has-due { position: relative; }
-            .day-has-due::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; background: hsl(var(--primary)); pointer-events: none; }
-            .day-all-completed::after { background: #22c55e; }
+            .rdp-caption_label { font-size: 1.1rem; font-weight: 800; }
+            .rdp-head_cell { font-weight: 700; color: var(--color-muted-foreground); padding-bottom: 0.75rem; text-transform: uppercase; font-size: 0.75rem; }
+            .rdp-button:hover:not([disabled]):not(.rdp-day_selected) { background-color: hsl(var(--muted)); border-radius: 10px; }
+            .rdp-day_selected { background-color: hsl(var(--primary)); color: white; font-weight: bold; border-radius: 10px; }
+            .rdp-day_selected:hover { background-color: hsl(var(--primary)); opacity: 0.9; }
+            .rdp-day_today:not(.rdp-day_selected) { font-weight: 800; color: hsl(var(--primary)); }
+            .rdp-nav_button { border-radius: 10px; }
+
+            /* Plan: red dot */
+            .day-has-plan { position: relative; }
+            .day-has-plan:not(.day-has-review)::after {
+              content: '';
+              position: absolute;
+              bottom: 2px;
+              left: 50%;
+              transform: translateX(-50%);
+              width: 5px; height: 5px;
+              border-radius: 50%;
+              background: #ef4444;
+              pointer-events: none;
+            }
+            /* Review: green dot */
+            .day-has-review { position: relative; }
+            .day-has-review:not(.day-has-plan)::after {
+              content: '';
+              position: absolute;
+              bottom: 2px;
+              left: 50%;
+              transform: translateX(-50%);
+              width: 5px; height: 5px;
+              border-radius: 50%;
+              background: #22c55e;
+              pointer-events: none;
+            }
+            /* Both: two dots (red left, green right) */
+            .day-has-plan.day-has-review::after {
+              content: '';
+              position: absolute;
+              bottom: 2px;
+              left: calc(50% - 5px);
+              width: 5px; height: 5px;
+              border-radius: 50%;
+              background: #ef4444;
+              box-shadow: 8px 0 0 0 #22c55e;
+              pointer-events: none;
+            }
+            /* Excluded: X top-right corner */
+            .day-excluded { position: relative; }
+            .day-excluded::before {
+              content: '✕';
+              position: absolute;
+              top: 0;
+              right: 1px;
+              font-size: 7px;
+              font-weight: 900;
+              color: #d97706;
+              line-height: 1.3;
+              pointer-events: none;
+            }
           `}</style>
 
           <DayPicker
             mode="single"
+            numberOfMonths={2}
+            pagedNavigation
+            defaultMonth={startOfMonth(new Date())}
             selected={selectedDate}
-            onSelect={(day) => day && handleDayClick(day)}
+            onSelect={day => day && setSelectedDate(day)}
             modifiers={modifiers}
             modifiersClassNames={{
-              hasDue: "day-has-due",
-              allCompleted: "day-all-completed",
+              hasPlan: "day-has-plan",
+              hasReview: "day-has-review",
+              isExcluded: "day-excluded",
             }}
+            locale={zhTW}
           />
         </div>
 
-        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetContent side="bottom" className="rounded-t-[32px] min-h-[50vh] max-h-[85vh] pb-8 px-6 sm:max-w-md sm:mx-auto border-none shadow-2xl">
-            <SheetHeader className="mb-6 mt-2">
-              <SheetTitle className="text-2xl font-bold flex items-center justify-center gap-3">
-                <Calendar className="w-7 h-7 text-primary" strokeWidth={3} />
-                {selectedDate ? format(selectedDate, "yyyy年MM月dd日") : ""}
-              </SheetTitle>
-            </SheetHeader>
-            
-            <div className="space-y-4 overflow-y-auto max-h-[60vh] pr-2 -mr-2 pb-10">
-              {selectedItems.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-muted/50 rounded-3xl rotate-12 flex items-center justify-center mx-auto mb-6">
-                    <span className="text-4xl -rotate-12">☕️</span>
-                  </div>
-                  <p className="text-muted-foreground font-medium text-lg">這天沒有安排複習喔！</p>
-                </div>
-              ) : (
-                selectedItems.map((item, idx) => (
-                  <div key={idx} className={cn(
-                    "flex items-center gap-4 p-4 rounded-3xl border-2 transition-colors",
-                    item.isCompleted ? "border-green-500/30 bg-green-500/5" : "border-border/50 bg-card shadow-sm"
-                  )}>
-                    <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 shadow-inner", item.subject?.color || "bg-muted")}>
-                      {item.subject?.emoji}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
-                          第 {item.round} 次
-                        </span>
-                        <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-muted text-muted-foreground truncate">
-                          {item.subject?.name}
-                        </span>
-                      </div>
-                      <h4 className={cn("font-bold text-lg truncate", item.isCompleted ? "text-muted-foreground line-through" : "text-foreground")}>
-                        {item.scope}
-                      </h4>
-                    </div>
-
-                    {item.isCompleted ? (
-                      <CheckCircle2 className="w-8 h-8 text-green-500 shrink-0" strokeWidth={3} />
-                    ) : (
-                      <Circle className="w-8 h-8 text-muted-foreground/30 shrink-0" strokeWidth={3} />
-                    )}
-                  </div>
-                ))
+        {/* Detail panel */}
+        {selectedDate && (
+          <div className="bg-card border border-border/50 rounded-3xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-5">
+              <h2 className="text-lg font-bold text-foreground">
+                {format(selectedDate, "yyyy 年 M 月 d 日（E）", { locale: zhTW })}
+              </h2>
+              {excludedNote && (
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                  ✕ 排除日：{excludedNote.note || "已設定排除"}
+                </span>
               )}
             </div>
-          </SheetContent>
-        </Sheet>
+
+            <div className="grid gap-6 sm:grid-cols-2">
+              {/* Section 1: Study Plan */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <BookOpen className="w-4 h-4 text-rose-500" />
+                  <h3 className="text-sm font-bold text-rose-600">今日讀書計畫</h3>
+                  <span className="ml-auto text-xs text-muted-foreground font-medium">{planItems.length} 個</span>
+                </div>
+                {planItems.length === 0 ? (
+                  <div className="text-center py-6 bg-muted/30 rounded-2xl">
+                    <p className="text-muted-foreground text-sm">這天沒有新學習計畫</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {planItems.map(item => (
+                      <div key={item.id} className="flex items-center gap-3 p-3 bg-rose-50/60 border border-rose-100 rounded-2xl">
+                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0", item.subject?.color ?? "bg-muted")}>
+                          {item.subject?.emoji}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-muted-foreground">{item.subject?.name}</p>
+                          <p className="text-sm font-bold text-foreground truncate">{item.scope}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Review Tasks */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <CalendarCheck className="w-4 h-4 text-emerald-500" />
+                  <h3 className="text-sm font-bold text-emerald-600">當日複習任務</h3>
+                  <span className="ml-auto text-xs text-muted-foreground font-medium">{reviewItems.length} 個</span>
+                </div>
+                {reviewItems.length === 0 ? (
+                  <div className="text-center py-6 bg-muted/30 rounded-2xl">
+                    <p className="text-muted-foreground text-sm">這天沒有複習任務</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {reviewItems.map((item, idx) => (
+                      <div key={idx} className={cn(
+                        "flex items-center gap-3 p-3 border rounded-2xl",
+                        item.isCompleted ? "bg-emerald-50/60 border-emerald-100" : "bg-card border-border/50"
+                      )}>
+                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0", item.subject?.color ?? "bg-muted")}>
+                          {item.subject?.emoji}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-muted-foreground">{item.subject?.name} · 第 {item.round} 次</p>
+                          <p className={cn("text-sm font-bold truncate", item.isCompleted ? "line-through text-muted-foreground" : "text-foreground")}>
+                            {item.scope}
+                          </p>
+                        </div>
+                        {item.isCompleted
+                          ? <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                          : <Circle className="w-5 h-5 text-muted-foreground/30 shrink-0" />
+                        }
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

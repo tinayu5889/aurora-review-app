@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, Edit, Book, Download, Upload, CheckCircle, AlertTriangle } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, Subject, ReviewSession } from "@/hooks/use-data";
+import { useData, Subject, ReviewSession, Goal, ExcludedPeriod } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -24,6 +24,8 @@ type BackupData = {
   exportedAt: string;
   subjects: Subject[];
   sessions: ReviewSession[];
+  goals?: Goal[];
+  excludedPeriods?: ExcludedPeriod[];
 };
 
 type ImportStatus = "idle" | "success" | "error";
@@ -31,10 +33,14 @@ type ImportStatus = "idle" | "success" | "error";
 function BackupCard({
   subjects,
   sessions,
+  goals,
+  excludedPeriods,
   onImport,
 }: {
   subjects: Subject[];
   sessions: ReviewSession[];
+  goals: Goal[];
+  excludedPeriods: ExcludedPeriod[];
   onImport: (data: BackupData) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +58,8 @@ function BackupCard({
       exportedAt: new Date().toISOString(),
       subjects,
       sessions,
+      goals,
+      excludedPeriods,
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -212,7 +220,7 @@ function BackupCard({
 }
 
 export default function Subjects() {
-  const { subjects, sessions, saveSubjects, saveSessions, isLoaded } = useData();
+  const { subjects, sessions, saveSubjects, saveSessions, goals, saveGoals, excludedPeriods, saveExcludedPeriods, isLoaded } = useData();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -263,6 +271,8 @@ export default function Subjects() {
   const handleImport = (data: BackupData) => {
     saveSubjects(data.subjects);
     saveSessions(data.sessions);
+    if (data.goals) saveGoals(data.goals);
+    if (data.excludedPeriods) saveExcludedPeriods(data.excludedPeriods);
     localStorage.setItem("kr_last_backup", `還原於 ${new Date().toLocaleString("zh-TW")}`);
   };
 
@@ -351,7 +361,7 @@ export default function Subjects() {
           </Dialog>
         </div>
 
-        <BackupCard subjects={subjects} sessions={sessions} onImport={handleImport} />
+        <BackupCard subjects={subjects} sessions={sessions} goals={goals} excludedPeriods={excludedPeriods} onImport={handleImport} />
 
         <div className="grid grid-cols-2 gap-2">
           <AnimatePresence>

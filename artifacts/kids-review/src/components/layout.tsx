@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { Calendar, BookOpen, CalendarCheck, Clock, ClipboardList, Book, PlusCircle } from "lucide-react";
+import { Calendar, BookOpen, CalendarCheck, Clock, ClipboardList, Book, PlusCircle, Target, CalendarX2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -91,7 +91,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="px-5 py-5 border-b border-border/40">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm">
-              <BookOpen className="w-4.5 h-4.5 text-primary-foreground" />
+              <BookOpen className="w-4 h-4 text-primary-foreground" />
             </div>
             <div>
               <p className="font-bold text-sm text-foreground leading-tight">Kiddo Study</p>
@@ -105,49 +105,19 @@ export function Layout({ children }: { children: ReactNode }) {
 
           <p className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider px-3 pb-1.5 pt-0.5">今日任務</p>
 
-          <NavItem
-            href="/?s=plan"
-            label="今日讀書計畫"
-            icon={BookOpen}
-            active={isHome && section === "plan"}
-          />
-          <NavItem
-            href="/?s=today"
-            label="要記得複習唷"
-            icon={CalendarCheck}
-            badge={badges.today}
-            active={isHome && section === "today"}
-          />
-          <NavItem
-            href="/?s=overdue"
-            label="你還記得嗎"
-            icon={Clock}
-            badge={badges.overdue}
-            active={isHome && section === "overdue"}
-          />
+          <NavItem href="/?s=plan"    label="今日讀書計畫" icon={BookOpen}      active={isHome && section === "plan"} />
+          <NavItem href="/?s=today"   label="要記得複習唷" icon={CalendarCheck} badge={badges.today}   active={isHome && section === "today"} />
+          <NavItem href="/?s=overdue" label="你還記得嗎"   icon={Clock}         badge={badges.overdue} active={isHome && section === "overdue"} />
 
           <div className="h-px bg-border/40 my-3 mx-1" />
 
           <p className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider px-3 pb-1.5 pt-0.5">管理</p>
 
-          <NavItem
-            href="/calendar"
-            label="月曆"
-            icon={Calendar}
-            active={location === "/calendar"}
-          />
-          <NavItem
-            href="/history"
-            label="歷程"
-            icon={ClipboardList}
-            active={location === "/history"}
-          />
-          <NavItem
-            href="/subjects"
-            label="科目"
-            icon={Book}
-            active={location === "/subjects"}
-          />
+          <NavItem href="/calendar"      label="月曆"   icon={Calendar}   active={location === "/calendar"} />
+          <NavItem href="/history"       label="歷程"   icon={ClipboardList} active={location === "/history"} />
+          <NavItem href="/subjects"      label="科目"   icon={Book}       active={location === "/subjects"} />
+          <NavItem href="/goals"         label="學習目標" icon={Target}     active={location === "/goals"} />
+          <NavItem href="/excluded-days" label="排除日"  icon={CalendarX2} active={location === "/excluded-days"} />
         </nav>
 
         {/* Add button */}

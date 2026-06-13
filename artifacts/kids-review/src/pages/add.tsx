@@ -2,13 +2,14 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { CheckCircle2, CalendarCheck, BookOpenCheck } from "lucide-react";
+import { CheckCircle2, CalendarCheck, BookOpenCheck, CalendarX2 } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, LearningType } from "@/hooks/use-data";
+import { useData, LearningType, ExcludedPeriod } from "@/hooks/use-data";
 import { generateReviewDates } from "@/lib/spaced-repetition";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -18,8 +19,12 @@ const LEARNING_TYPE_OPTIONS: { value: LearningType; emoji: string; label: string
   { value: "reading", emoji: "📖", label: "閱讀"   },
 ];
 
+function findMatchedExclusion(date: string, excludedPeriods: ExcludedPeriod[]): ExcludedPeriod | null {
+  return excludedPeriods.find(p => date >= p.startDate && date <= p.endDate) ?? null;
+}
+
 export default function AddLearning() {
-  const { subjects, sessions, saveSessions, isLoaded } = useData();
+  const { subjects, sessions, saveSessions, excludedPeriods, isLoaded } = useData();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -30,12 +35,10 @@ export default function AddLearning() {
   const [includeReview, setIncludeReview] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedSubject || !scope.trim() || !firstDate) return;
+  const [warningPeriod, setWarningPeriod] = useState<ExcludedPeriod | null>(null);
 
+  const doSubmit = () => {
     setIsSubmitting(true);
-
     const newSession = {
       id: Math.random().toString(36).substring(7),
       subjectId: selectedSubject,
@@ -46,18 +49,25 @@ export default function AddLearning() {
       completedDates: [],
       records: [],
     };
-
     saveSessions([...sessions, newSession]);
-
     toast({
       title: "太棒了！ 🎉",
       description: includeReview ? "已經幫你安排好複習計畫囉！" : "已加入今日讀書計畫！",
       className: "bg-green-500 text-white border-none rounded-2xl",
     });
+    setTimeout(() => setLocation("/"), 800);
+  };
 
-    setTimeout(() => {
-      setLocation("/");
-    }, 800);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSubject || !scope.trim() || !firstDate) return;
+
+    const matched = findMatchedExclusion(firstDate, excludedPeriods);
+    if (matched) {
+      setWarningPeriod(matched);
+      return;
+    }
+    doSubmit();
   };
 
   if (!isLoaded) return null;
@@ -75,7 +85,6 @@ export default function AddLearning() {
           {/* 科目 */}
           <div className="space-y-2.5">
             <Label className="text-base font-bold text-foreground ml-1">選擇科目</Label>
-
             {subjects.length === 0 ? (
               <div className="p-6 bg-muted/50 rounded-3xl text-center border border-border/50">
                 <p className="text-muted-foreground mb-4 font-medium">還沒有科目喔，先去建立一個吧！</p>
@@ -193,6 +202,16 @@ export default function AddLearning() {
                 required
               />
             </div>
+            {/* Show exclusion hint if date is in excluded period */}
+            {firstDate && findMatchedExclusion(firstDate, excludedPeriods) && (
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                <CalendarX2 className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                <span>
+                  <span className="font-bold">排除日提醒：</span>
+                  {findMatchedExclusion(firstDate, excludedPeriods)?.note || "此日期位於排除日區間"}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="mt-auto pt-2">
@@ -215,6 +234,45 @@ export default function AddLearning() {
           </div>
         </form>
       </div>
+
+      {/* Exclusion warning dialog */}
+      <AlertDialog open={!!warningPeriod} onOpenChange={open => !open && setWarningPeriod(null)}>
+        <AlertDialogContent className="rounded-3xl border-none shadow-2xl w-[90%] sm:max-w-md mx-auto p-6">
+          <AlertDialogHeader>
+            <div className="flex justify-center mb-2">
+              <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center">
+                <CalendarX2 className="w-6 h-6 text-amber-500" />
+              </div>
+            </div>
+            <AlertDialogTitle className="text-xl font-bold text-center">排除日提醒</AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-sm mt-2 space-y-2">
+              <span className="block">此日期位於排除日區間：</span>
+              {warningPeriod && (
+                <span className="block bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-foreground font-medium">
+                  <span className="block font-bold text-amber-700">
+                    {warningPeriod.startDate} ～ {warningPeriod.endDate}
+                  </span>
+                  {warningPeriod.note && (
+                    <span className="block text-muted-foreground mt-1">備註：{warningPeriod.note}</span>
+                  )}
+                </span>
+              )}
+              <span className="block text-muted-foreground">是否仍要新增讀書計畫？</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col mt-3">
+            <AlertDialogAction
+              onClick={() => { setWarningPeriod(null); doSubmit(); }}
+              className="w-full h-12 rounded-2xl font-bold bg-primary hover:bg-primary/90"
+            >
+              仍要新增
+            </AlertDialogAction>
+            <AlertDialogCancel className="w-full h-12 rounded-2xl font-bold border-2 mt-0">
+              取消
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

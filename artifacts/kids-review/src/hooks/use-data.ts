@@ -28,6 +28,20 @@ export type ReviewSession = {
   records: ReviewRecord[];
 };
 
+export type Goal = {
+  id: string;
+  content: string;
+  targetDate: string;
+  isCompleted: boolean;
+};
+
+export type ExcludedPeriod = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  note: string;
+};
+
 const INITIAL_SUBJECTS: Subject[] = [
   { id: "1", name: "數學", color: "bg-blue-400", emoji: "📐" },
   { id: "2", name: "國語", color: "bg-red-400", emoji: "📖" },
@@ -41,11 +55,15 @@ function migrateSession(s: ReviewSession): ReviewSession {
 export function useData() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [sessions, setSessions] = useState<ReviewSession[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [excludedPeriods, setExcludedPeriods] = useState<ExcludedPeriod[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const storedSubjects = localStorage.getItem("kr_subjects");
     const storedSessions = localStorage.getItem("kr_sessions");
+    const storedGoals = localStorage.getItem("kr_goals");
+    const storedExcluded = localStorage.getItem("kr_excluded_periods");
 
     if (storedSubjects) {
       setSubjects(JSON.parse(storedSubjects));
@@ -59,6 +77,14 @@ export function useData() {
       setSessions(parsed.map(migrateSession));
     } else {
       setSessions([]);
+    }
+
+    if (storedGoals) {
+      setGoals(JSON.parse(storedGoals));
+    }
+
+    if (storedExcluded) {
+      setExcludedPeriods(JSON.parse(storedExcluded));
     }
 
     setIsLoaded(true);
@@ -75,11 +101,25 @@ export function useData() {
     window.dispatchEvent(new Event("kr-sessions-updated"));
   };
 
+  const saveGoals = (newGoals: Goal[]) => {
+    setGoals(newGoals);
+    localStorage.setItem("kr_goals", JSON.stringify(newGoals));
+  };
+
+  const saveExcludedPeriods = (newPeriods: ExcludedPeriod[]) => {
+    setExcludedPeriods(newPeriods);
+    localStorage.setItem("kr_excluded_periods", JSON.stringify(newPeriods));
+  };
+
   return {
     subjects,
     sessions,
+    goals,
+    excludedPeriods,
     saveSubjects,
     saveSessions,
+    saveGoals,
+    saveExcludedPeriods,
     isLoaded,
   };
 }
