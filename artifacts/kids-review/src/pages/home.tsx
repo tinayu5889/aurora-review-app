@@ -366,12 +366,23 @@ export default function Home() {
     setAnimatingIds(prev => [...prev, animKey]);
     setPendingItem(null);
     setTimeout(() => {
-      const newRecord: ReviewRecord = { date, difficulty, understanding, notes, completedAt: new Date().toISOString() };
-      const updated = sessions.map(s => {
-        if (s.id !== sessionId) return s;
-        return { ...s, reviewDates: adjustNextDate(s.reviewDates, reviewDateIndex, difficulty), completedDates: [...s.completedDates, date], records: [...(s.records || []), newRecord] };
-      });
-      saveSessions(updated);
+      const session = sessions.find(s => s.id === sessionId);
+      const isLastReview =
+        session !== undefined &&
+        session.reviewDates.length > 0 &&
+        reviewDateIndex === session.reviewDates.length - 1;
+
+      if (isLastReview) {
+        // 最後一次複習完成 → 永久刪除整筆學習計畫與所有相關資料
+        saveSessions(sessions.filter(s => s.id !== sessionId));
+      } else {
+        const newRecord: ReviewRecord = { date, difficulty, understanding, notes, completedAt: new Date().toISOString() };
+        const updated = sessions.map(s => {
+          if (s.id !== sessionId) return s;
+          return { ...s, reviewDates: adjustNextDate(s.reviewDates, reviewDateIndex, difficulty), completedDates: [...s.completedDates, date], records: [...(s.records || []), newRecord] };
+        });
+        saveSessions(updated);
+      }
       setAnimatingIds(prev => prev.filter(id => id !== animKey));
     }, 400);
   };
