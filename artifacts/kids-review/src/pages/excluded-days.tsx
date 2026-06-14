@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, Edit, CalendarX2, ArrowRight } from "lucide-react";
@@ -22,6 +22,15 @@ function formatDate(dateStr: string) {
 
 export default function ExcludedDays() {
   const { excludedPeriods, saveExcludedPeriods, isLoaded } = useData();
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const active = excludedPeriods.filter(p => p.endDate >= today);
+    if (active.length !== excludedPeriods.length) {
+      saveExcludedPeriods(active);
+    }
+  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

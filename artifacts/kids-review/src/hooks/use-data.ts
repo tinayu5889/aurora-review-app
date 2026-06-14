@@ -52,6 +52,11 @@ function migrateSession(s: ReviewSession): ReviewSession {
   return { ...s, records: s.records ?? [], learningType: s.learningType ?? "reading" };
 }
 
+function purgeExpiredPeriods(periods: ExcludedPeriod[]): ExcludedPeriod[] {
+  const today = new Date().toISOString().slice(0, 10);
+  return periods.filter(p => p.endDate >= today);
+}
+
 export function useData() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [sessions, setSessions] = useState<ReviewSession[]>([]);
@@ -84,7 +89,12 @@ export function useData() {
     }
 
     if (storedExcluded) {
-      setExcludedPeriods(JSON.parse(storedExcluded));
+      const parsed: ExcludedPeriod[] = JSON.parse(storedExcluded);
+      const active = purgeExpiredPeriods(parsed);
+      if (active.length !== parsed.length) {
+        localStorage.setItem("kr_excluded_periods", JSON.stringify(active));
+      }
+      setExcludedPeriods(active);
     }
 
     setIsLoaded(true);

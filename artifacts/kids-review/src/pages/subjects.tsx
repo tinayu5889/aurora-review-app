@@ -52,6 +52,8 @@ function BackupCard({
   const lastBackup = localStorage.getItem("kr_last_backup");
 
   const handleExport = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const activeExcludedPeriods = excludedPeriods.filter(p => p.endDate >= today);
     const data: BackupData = {
       version: "1.0",
       appName: "aurora-review-app",
@@ -59,7 +61,7 @@ function BackupCard({
       subjects,
       sessions,
       goals,
-      excludedPeriods,
+      excludedPeriods: activeExcludedPeriods,
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
