@@ -286,32 +286,6 @@ export default function AddLearning() {
             </div>
           </div>
 
-          {/* ── 時段 ── */}
-          <div className="space-y-2.5">
-            <Label className="text-base font-bold text-foreground ml-1">時段</Label>
-            <div className="grid grid-cols-4 gap-2">
-              {TIME_SLOT_ORDER.map(slot => {
-                const opt = TIME_SLOT_LABELS[slot];
-                return (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => setTimeSlot(slot)}
-                    className={cn(
-                      "flex flex-col items-center justify-center py-3 rounded-2xl border-[3px] transition-all active:scale-95",
-                      timeSlot === slot
-                        ? "border-sky-400 bg-sky-50 text-sky-700 shadow-sm scale-105"
-                        : "bg-card border-border/50 hover:bg-muted text-foreground"
-                    )}
-                  >
-                    <span className="text-xl mb-1">{opt.emoji}</span>
-                    <span className="text-[11px] font-bold leading-tight text-center">{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* ── 是否加入複習計畫 ── */}
           <div className="space-y-2.5">
             <Label className="text-base font-bold text-foreground ml-1">是否加入複習計畫</Label>
@@ -505,6 +479,32 @@ export default function AddLearning() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* ── 時段 ── */}
+          <div className="space-y-2.5">
+            <Label className="text-base font-bold text-foreground ml-1">時段</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {TIME_SLOT_ORDER.map(slot => {
+                const opt = TIME_SLOT_LABELS[slot];
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => setTimeSlot(slot)}
+                    className={cn(
+                      "flex flex-col items-center justify-center py-3 rounded-2xl border-[3px] transition-all active:scale-95",
+                      timeSlot === slot
+                        ? "border-sky-400 bg-sky-50 text-sky-700 shadow-sm scale-105"
+                        : "bg-card border-border/50 hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <span className="text-xl mb-1">{opt.emoji}</span>
+                    <span className="text-[11px] font-bold leading-tight text-center">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* ── Submit ── */}
