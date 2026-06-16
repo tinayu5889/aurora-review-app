@@ -1,9 +1,12 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase: SupabaseClient | null =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
 
 export const FAMILY_ID_KEY = "kr_family_id";
 
@@ -16,6 +19,7 @@ export async function syncTable<T extends { id: string }>(
   familyId: string,
   items: T[]
 ): Promise<void> {
+  if (!supabase) return;
   await supabase.from(table).delete().eq("family_id", familyId);
   if (items.length > 0) {
     await supabase
@@ -25,6 +29,7 @@ export async function syncTable<T extends { id: string }>(
 }
 
 export async function fetchTable<T>(table: string, familyId: string): Promise<T[]> {
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from(table)
     .select("data")
