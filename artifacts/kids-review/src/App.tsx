@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getFamilyId } from "@/lib/supabase";
 import NotFound from "@/pages/not-found";
+import FamilyCodePage from "@/pages/family-code";
 
 import Home from "./pages/home";
 import Subjects from "./pages/subjects";
@@ -32,6 +35,16 @@ function Router() {
 }
 
 function App() {
+  const [familyId, setFamilyId] = useState<string | null>(() => getFamilyId());
+
+  if (!familyId) {
+    return (
+      <FamilyCodePage
+        onEnter={(code) => setFamilyId(code)}
+      />
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
