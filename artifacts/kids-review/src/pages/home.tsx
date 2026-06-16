@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Star, FileText, Pencil, Clock, CalendarCheck, BookOpen, PlusCircle } from "lucide-react";
+import { Check, Star, FileText, Pencil, Clock, CalendarCheck, BookOpen, PlusCircle, Circle } from "lucide-react";
 import { useSearch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { useData, ReviewRecord, ReviewSession, LearningType, TimeSlot, TIME_SLOT_LABELS, TIME_SLOT_ORDER } from "@/hooks/use-data";
@@ -246,11 +246,49 @@ function TaskListSection({ items, title, icon, onCardClick, onCompleteClick, ani
   );
 }
 
+/* ── Plan done helpers (persisted per-day in localStorage) ── */
+const PLAN_DONE_KEY = "kr_plan_done";
+
+function loadPlanDone(todayStr: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(PLAN_DONE_KEY);
+    if (!raw) return new Set();
+    const parsed: Record<string, string[]> = JSON.parse(raw);
+    return new Set(parsed[todayStr] ?? []);
+  } catch { return new Set(); }
+}
+
+function savePlanDone(todayStr: string, ids: Set<string>) {
+  try {
+    const raw = localStorage.getItem(PLAN_DONE_KEY);
+    const parsed: Record<string, string[]> = raw ? JSON.parse(raw) : {};
+    // Keep only today (prune old dates)
+    const fresh: Record<string, string[]> = { [todayStr]: [...ids] };
+    // Preserve yesterday in case of midnight edge case
+    Object.keys(parsed).forEach(d => { if (d >= todayStr) fresh[d] = parsed[d]; });
+    localStorage.setItem(PLAN_DONE_KEY, JSON.stringify(fresh));
+  } catch {}
+}
+
 /* ── Study plan section ── */
-function StudyPlanSection({ studyPlanItems, navigate }: {
+function StudyPlanSection({ studyPlanItems, navigate, todayStr }: {
   studyPlanItems: { session: ReviewSession; subject: { id: string; name: string; color: string; emoji: string } | undefined }[];
   navigate: (to: string) => void;
+  todayStr: string;
 }) {
+  const [doneIds, setDoneIds] = useState<Set<string>>(() => loadPlanDone(todayStr));
+
+  const toggleDone = (id: string) => {
+    setDoneIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      savePlanDone(todayStr, next);
+      return next;
+    });
+  };
+
+  const doneCount = studyPlanItems.filter(({ session }) => doneIds.has(session.id)).length;
+
   /* Group by timeSlot in canonical order, skip empty groups */
   const groups = TIME_SLOT_ORDER
     .map(slot => ({
@@ -266,6 +304,11 @@ function StudyPlanSection({ studyPlanItems, navigate }: {
       <div className="flex items-center gap-3 mb-6">
         <BookOpen className="w-6 h-6 text-violet-500" />
         <h1 className="text-2xl font-bold text-foreground">今日讀書計畫</h1>
+        {studyPlanItems.length > 0 && (
+          <span className="ml-2 text-sm font-bold text-muted-foreground bg-muted px-3 py-1 rounded-full">
+            {doneCount}/{studyPlanItems.length} 完成
+          </span>
+        )}
         <span className="ml-auto text-sm text-muted-foreground font-medium">
           {format(new Date(), "yyyy 年 M 月 d 日")}
         </span>
@@ -286,11 +329,21 @@ function StudyPlanSection({ studyPlanItems, navigate }: {
         </div>
       ) : (
         <div className="mb-6 space-y-5">
+          {doneCount === studyPlanItems.length && studyPlanItems.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-3 bg-green-50 border-2 border-green-200 rounded-2xl px-5 py-3"
+            >
+              <span className="text-2xl">🎉</span>
+              <p className="font-bold text-green-700">今天的讀書計畫全部完成了！你太棒了！</p>
+            </motion.div>
+          )}
+
           {groups.map(({ slot, items }) => {
             const slotMeta = TIME_SLOT_LABELS[slot as TimeSlot];
             return (
               <div key={slot}>
-                {/* Section header */}
                 <div className="flex items-center gap-2 mb-2 px-1">
                   <span className="text-base leading-none">{slotMeta.emoji}</span>
                   <span className="text-sm font-bold text-muted-foreground">{slotMeta.label}</span>
@@ -299,26 +352,55 @@ function StudyPlanSection({ studyPlanItems, navigate }: {
                 <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
                   {items.map(({ session, subject }) => {
                     const delay = (cardIndex++) * 0.05;
+                    const isDone = doneIds.has(session.id);
                     return (
                       <motion.div
                         key={session.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay }}
-                        className="flex items-center gap-4 bg-card border-2 border-violet-100 hover:border-violet-200 rounded-2xl p-4 transition-colors shadow-sm"
+                        className={cn(
+                          "flex items-center gap-4 border-2 rounded-2xl p-4 transition-all shadow-sm",
+                          isDone
+                            ? "bg-green-50 border-green-200"
+                            : "bg-card border-violet-100 hover:border-violet-200"
+                        )}
                       >
-                        <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-inner", subject?.color || "bg-muted")}>
+                        <div className={cn(
+                          "w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-inner transition-opacity",
+                          subject?.color || "bg-muted",
+                          isDone && "opacity-40"
+                        )}>
                           {subject?.emoji}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-muted-foreground mb-0.5">{subject?.name}</p>
-                          <p className="text-base font-bold text-foreground truncate">{session.scope}</p>
-                          <p className="text-[11px] text-violet-500 font-medium mt-0.5">
+                          <p className={cn("text-xs font-bold mb-0.5", isDone ? "text-green-600/60" : "text-muted-foreground")}>
+                            {subject?.name}
+                          </p>
+                          <p className={cn("text-base font-bold truncate transition-all", isDone ? "line-through text-muted-foreground" : "text-foreground")}>
+                            {session.scope}
+                          </p>
+                          <p className={cn("text-[11px] font-medium mt-0.5", isDone ? "text-green-600/60" : "text-violet-500")}>
                             {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].emoji}{" "}
                             {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].label}
                             {session.reviewDates.length > 0 ? " · 複習排程已自動建立 ✓" : " · 單次學習"}
                           </p>
                         </div>
+                        <button
+                          onClick={() => toggleDone(session.id)}
+                          className={cn(
+                            "w-12 h-12 rounded-xl shrink-0 flex items-center justify-center transition-all duration-200 border-2",
+                            isDone
+                              ? "bg-green-500 border-green-500 scale-105"
+                              : "bg-card border-violet-200 hover:border-violet-400 hover:bg-violet-50"
+                          )}
+                          aria-label={isDone ? "取消完成" : "標記完成"}
+                        >
+                          {isDone
+                            ? <Check className="w-6 h-6 text-white" strokeWidth={3} />
+                            : <Circle className="w-6 h-6 text-violet-300" />
+                          }
+                        </button>
                       </motion.div>
                     );
                   })}
@@ -428,6 +510,7 @@ export default function Home() {
               key="plan"
               studyPlanItems={studyPlanItems}
               navigate={navigate}
+              todayStr={todayStr}
             />
           )}
 
