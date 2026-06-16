@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Check, Star, FileText, Pencil, Clock, CalendarCheck, BookOpen, PlusCircle } from "lucide-react";
 import { useSearch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
-import { useData, ReviewRecord, ReviewSession, LearningType } from "@/hooks/use-data";
+import { useData, ReviewRecord, ReviewSession, LearningType, TimeSlot, TIME_SLOT_LABELS, TIME_SLOT_ORDER } from "@/hooks/use-data";
 import { adjustNextDate } from "@/lib/spaced-repetition";
 import { EditSessionSheet } from "@/components/edit-session-sheet";
 import { Button } from "@/components/ui/button";
@@ -251,6 +251,16 @@ function StudyPlanSection({ studyPlanItems, navigate }: {
   studyPlanItems: { session: ReviewSession; subject: { id: string; name: string; color: string; emoji: string } | undefined }[];
   navigate: (to: string) => void;
 }) {
+  /* Group by timeSlot in canonical order, skip empty groups */
+  const groups = TIME_SLOT_ORDER
+    .map(slot => ({
+      slot,
+      items: studyPlanItems.filter(({ session }) => (session.timeSlot ?? "none") === slot),
+    }))
+    .filter(g => g.items.length > 0);
+
+  let cardIndex = 0;
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
       <div className="flex items-center gap-3 mb-6">
@@ -275,31 +285,47 @@ function StudyPlanSection({ studyPlanItems, navigate }: {
           </Button>
         </div>
       ) : (
-        <div>
-          <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2 mb-6">
-            {studyPlanItems.map(({ session, subject }, i) => (
-              <motion.div
-                key={session.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-4 bg-card border-2 border-violet-100 hover:border-violet-200 rounded-2xl p-4 transition-colors shadow-sm"
-              >
-                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-inner", subject?.color || "bg-muted")}>
-                  {subject?.emoji}
+        <div className="mb-6 space-y-5">
+          {groups.map(({ slot, items }) => {
+            const slotMeta = TIME_SLOT_LABELS[slot as TimeSlot];
+            return (
+              <div key={slot}>
+                {/* Section header */}
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className="text-base leading-none">{slotMeta.emoji}</span>
+                  <span className="text-sm font-bold text-muted-foreground">{slotMeta.label}</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-muted-foreground mb-0.5">{subject?.name}</p>
-                  <p className="text-base font-bold text-foreground truncate">{session.scope}</p>
-                  <p className="text-[11px] text-violet-500 font-medium mt-0.5">
-                    {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].emoji}{" "}
-                    {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].label}
-                    {session.reviewDates.length > 0 ? " · 複習排程已自動建立 ✓" : " · 單次學習"}
-                  </p>
+
+                <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
+                  {items.map(({ session, subject }) => {
+                    const delay = (cardIndex++) * 0.05;
+                    return (
+                      <motion.div
+                        key={session.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay }}
+                        className="flex items-center gap-4 bg-card border-2 border-violet-100 hover:border-violet-200 rounded-2xl p-4 transition-colors shadow-sm"
+                      >
+                        <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-inner", subject?.color || "bg-muted")}>
+                          {subject?.emoji}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-muted-foreground mb-0.5">{subject?.name}</p>
+                          <p className="text-base font-bold text-foreground truncate">{session.scope}</p>
+                          <p className="text-[11px] text-violet-500 font-medium mt-0.5">
+                            {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].emoji}{" "}
+                            {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].label}
+                            {session.reviewDates.length > 0 ? " · 複習排程已自動建立 ✓" : " · 單次學習"}
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              </motion.div>
-            ))}
-          </div>
+              </div>
+            );
+          })}
 
           <Button
             onClick={() => navigate("/add")}

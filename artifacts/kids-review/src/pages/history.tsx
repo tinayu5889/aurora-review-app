@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Star, CalendarDays, TrendingUp, Pencil } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, ReviewRecord, ReviewSession, LearningType } from "@/hooks/use-data";
+import { useData, ReviewRecord, ReviewSession, LearningType, TIME_SLOT_LABELS } from "@/hooks/use-data";
 import { EditSessionSheet } from "@/components/edit-session-sheet";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -180,6 +180,11 @@ export default function History() {
                           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{subject?.name}</span>
                             {(() => { const lt = LEARNING_TYPE_LABELS[session.learningType ?? "reading"]; return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">{lt.emoji} {lt.label}</span>; })()}
+                            {(session.timeSlot && session.timeSlot !== "none") && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                                {TIME_SLOT_LABELS[session.timeSlot].emoji} {TIME_SLOT_LABELS[session.timeSlot].label}
+                              </span>
+                            )}
                             {isAllDone && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">全部完成</span>}
                             {hasOverdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">有逾期</span>}
                           </div>

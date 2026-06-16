@@ -7,7 +7,7 @@ import {
   Calendar, CalendarRange,
 } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, LearningType, ExcludedPeriod, ReviewSession } from "@/hooks/use-data";
+import { useData, LearningType, TimeSlot, TIME_SLOT_LABELS, TIME_SLOT_ORDER, ExcludedPeriod, ReviewSession } from "@/hooks/use-data";
 import { generateReviewDates } from "@/lib/spaced-repetition";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,13 +79,14 @@ function hasDuplicate(sessions: ReviewSession[], subjectId: string, scope: strin
   return sessions.some(s => s.subjectId === subjectId && s.scope === scope.trim() && s.firstDate === date);
 }
 
-function buildSession(subjectId: string, scope: string, learningType: LearningType, includeReview: boolean, date: string): ReviewSession {
+function buildSession(subjectId: string, scope: string, learningType: LearningType, timeSlot: TimeSlot, includeReview: boolean, date: string): ReviewSession {
   return {
     id: newId(),
     subjectId,
     scope: scope.trim(),
     firstDate: date,
     learningType,
+    timeSlot,
     reviewDates: includeReview ? generateReviewDates(date) : [],
     completedDates: [],
     records: [],
@@ -102,6 +103,7 @@ export default function AddLearning() {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [scope, setScope] = useState("");
   const [learningType, setLearningType] = useState<LearningType>("reading");
+  const [timeSlot, setTimeSlot] = useState<TimeSlot>("none");
   const [includeReview, setIncludeReview] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -178,7 +180,7 @@ export default function AddLearning() {
   /* ── Step 4: build and save ── */
   const doSubmit = (dates: string[], skippedExcluded: number) => {
     setIsSubmitting(true);
-    const newSessions = dates.map(d => buildSession(selectedSubject, scope, learningType, includeReview, d));
+    const newSessions = dates.map(d => buildSession(selectedSubject, scope, learningType, timeSlot, includeReview, d));
     saveSessions([...sessions, ...newSessions]);
 
     const count = newSessions.length;
@@ -281,6 +283,32 @@ export default function AddLearning() {
                   <span className="text-xs font-bold">{opt.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* ── 時段 ── */}
+          <div className="space-y-2.5">
+            <Label className="text-base font-bold text-foreground ml-1">時段</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {TIME_SLOT_ORDER.map(slot => {
+                const opt = TIME_SLOT_LABELS[slot];
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => setTimeSlot(slot)}
+                    className={cn(
+                      "flex flex-col items-center justify-center py-3 rounded-2xl border-[3px] transition-all active:scale-95",
+                      timeSlot === slot
+                        ? "border-sky-400 bg-sky-50 text-sky-700 shadow-sm scale-105"
+                        : "bg-card border-border/50 hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <span className="text-xl mb-1">{opt.emoji}</span>
+                    <span className="text-[11px] font-bold leading-tight text-center">{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

@@ -17,12 +17,24 @@ export type ReviewRecord = {
 
 export type LearningType = "video" | "quiz" | "reading";
 
+export type TimeSlot = "none" | "morning" | "afternoon" | "evening";
+
+export const TIME_SLOT_LABELS: Record<TimeSlot, { label: string; emoji: string }> = {
+  none:      { label: "不指定時段", emoji: "📋" },
+  morning:   { label: "上午",       emoji: "🌅" },
+  afternoon: { label: "下午",       emoji: "☀️" },
+  evening:   { label: "晚上",       emoji: "🌙" },
+};
+
+export const TIME_SLOT_ORDER: TimeSlot[] = ["morning", "afternoon", "evening", "none"];
+
 export type ReviewSession = {
   id: string;
   subjectId: string;
   scope: string;
   firstDate: string;
   learningType: LearningType;
+  timeSlot: TimeSlot;
   reviewDates: string[];
   completedDates: string[];
   records: ReviewRecord[];
@@ -49,7 +61,7 @@ const INITIAL_SUBJECTS: Subject[] = [
 ];
 
 function migrateSession(s: ReviewSession): ReviewSession {
-  return { ...s, records: s.records ?? [], learningType: s.learningType ?? "reading" };
+  return { ...s, records: s.records ?? [], learningType: s.learningType ?? "reading", timeSlot: s.timeSlot ?? "none" };
 }
 
 function purgeExpiredPeriods(periods: ExcludedPeriod[]): ExcludedPeriod[] {
