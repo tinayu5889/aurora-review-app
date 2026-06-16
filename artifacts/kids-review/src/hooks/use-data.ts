@@ -76,6 +76,17 @@ function purgeExpiredPeriods(periods: ExcludedPeriod[]): ExcludedPeriod[] {
   return periods.filter(p => p.endDate >= today);
 }
 
+function purgeCompletedSingleDaySessions(sessions: ReviewSession[]): ReviewSession[] {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 3);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  return sessions.filter(s => {
+    if (s.reviewDates.length > 0) return true;
+    if (!s.planCompletedDate) return true;
+    return s.planCompletedDate > cutoffStr;
+  });
+}
+
 export function useData() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [sessions, setSessions] = useState<ReviewSession[]>([]);
@@ -135,12 +146,15 @@ export function useData() {
         } else {
           /* ── Use Supabase data ── */
           const subjects = sbSubjects.length > 0 ? sbSubjects : INITIAL_SUBJECTS;
-          const sessions = sbSessions.map(migrateSession);
+          const sessions = purgeCompletedSingleDaySessions(sbSessions.map(migrateSession));
           const goals = sbGoals;
           const excluded = purgeExpiredPeriods(sbExcluded);
 
           if (excluded.length !== sbExcluded.length) {
             syncTable("kr_excluded_periods", familyId, excluded).catch(() => {});
+          }
+          if (sessions.length !== sbSessions.length) {
+            syncTable("kr_sessions", familyId, sessions).catch(() => {});
           }
 
           applyState(subjects, sessions, goals, excluded);
@@ -177,9 +191,9 @@ export function useData() {
       const subjects: Subject[] = storedSubjects ? JSON.parse(storedSubjects) : INITIAL_SUBJECTS;
       if (!storedSubjects) localStorage.setItem("kr_subjects", JSON.stringify(INITIAL_SUBJECTS));
 
-      const sessions: ReviewSession[] = storedSessions
-        ? (JSON.parse(storedSessions) as ReviewSession[]).map(migrateSession)
-        : [];
+      const sessions: ReviewSession[] = purgeCompletedSingleDaySessions(
+        storedSessions ? (JSON.parse(storedSessions) as ReviewSession[]).map(migrateSession) : []
+      );
 
       const goals: Goal[] = storedGoals ? JSON.parse(storedGoals) : [];
 
