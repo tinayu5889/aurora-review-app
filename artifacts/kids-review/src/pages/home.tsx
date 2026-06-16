@@ -271,10 +271,11 @@ function savePlanDone(todayStr: string, ids: Set<string>) {
 }
 
 /* ── Study plan section ── */
-function StudyPlanSection({ studyPlanItems, navigate, todayStr }: {
+function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick }: {
   studyPlanItems: { session: ReviewSession; subject: { id: string; name: string; color: string; emoji: string } | undefined }[];
   navigate: (to: string) => void;
   todayStr: string;
+  onEditClick: (session: ReviewSession) => void;
 }) {
   const [doneIds, setDoneIds] = useState<Set<string>>(() => loadPlanDone(todayStr));
 
@@ -374,10 +375,10 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr }: {
                           {subject?.emoji}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={cn("text-xs font-bold mb-0.5", isDone ? "text-green-600/60" : "text-muted-foreground")}>
+                          <p className={cn("text-sm font-bold mb-0.5", isDone ? "text-green-600/60" : "text-foreground")}>
                             {subject?.name}
                           </p>
-                          <p className={cn("text-base font-bold truncate transition-all", isDone ? "line-through text-muted-foreground" : "text-foreground")}>
+                          <p className={cn("text-sm truncate transition-all font-medium", isDone ? "line-through text-muted-foreground" : "text-muted-foreground")}>
                             {session.scope}
                           </p>
                           <p className={cn("text-[11px] font-medium mt-0.5", isDone ? "text-green-600/60" : "text-violet-500")}>
@@ -386,6 +387,13 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr }: {
                             {session.reviewDates.length > 0 ? " · 複習排程已自動建立 ✓" : " · 單次學習"}
                           </p>
                         </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); onEditClick(session); }}
+                          className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center border-2 border-border/50 bg-card hover:border-violet-300 hover:bg-violet-50 transition-all"
+                          aria-label="編輯"
+                        >
+                          <Pencil className="w-4 h-4 text-muted-foreground" />
+                        </button>
                         <button
                           onClick={() => toggleDone(session.id)}
                           className={cn(
@@ -511,6 +519,7 @@ export default function Home() {
               studyPlanItems={studyPlanItems}
               navigate={navigate}
               todayStr={todayStr}
+              onEditClick={setEditingSession}
             />
           )}
 
