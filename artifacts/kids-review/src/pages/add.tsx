@@ -104,7 +104,7 @@ export default function AddLearning() {
   const [scope, setScope] = useState("");
   const [learningType, setLearningType] = useState<LearningType>("reading");
   const [timeSlot, setTimeSlot] = useState<TimeSlot>("none");
-  const [includeReview, setIncludeReview] = useState(true);
+  const [includeReview, setIncludeReview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* Date mode */
