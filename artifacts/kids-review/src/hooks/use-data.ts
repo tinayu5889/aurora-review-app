@@ -39,6 +39,7 @@ export type ReviewSession = {
   reviewDates: string[];
   completedDates: string[];
   records: ReviewRecord[];
+  planCompletedDate?: string;
 };
 
 export type Goal = {

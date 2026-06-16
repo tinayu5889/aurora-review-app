@@ -246,49 +246,15 @@ function TaskListSection({ items, title, icon, onCardClick, onCompleteClick, ani
   );
 }
 
-/* ── Plan done helpers (persisted per-day in localStorage) ── */
-const PLAN_DONE_KEY = "kr_plan_done";
-
-function loadPlanDone(todayStr: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(PLAN_DONE_KEY);
-    if (!raw) return new Set();
-    const parsed: Record<string, string[]> = JSON.parse(raw);
-    return new Set(parsed[todayStr] ?? []);
-  } catch { return new Set(); }
-}
-
-function savePlanDone(todayStr: string, ids: Set<string>) {
-  try {
-    const raw = localStorage.getItem(PLAN_DONE_KEY);
-    const parsed: Record<string, string[]> = raw ? JSON.parse(raw) : {};
-    // Keep only today (prune old dates)
-    const fresh: Record<string, string[]> = { [todayStr]: [...ids] };
-    // Preserve yesterday in case of midnight edge case
-    Object.keys(parsed).forEach(d => { if (d >= todayStr) fresh[d] = parsed[d]; });
-    localStorage.setItem(PLAN_DONE_KEY, JSON.stringify(fresh));
-  } catch {}
-}
-
 /* ── Study plan section ── */
-function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick }: {
+function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onToggleDone }: {
   studyPlanItems: { session: ReviewSession; subject: { id: string; name: string; color: string; emoji: string } | undefined }[];
   navigate: (to: string) => void;
   todayStr: string;
   onEditClick: (session: ReviewSession) => void;
+  onToggleDone: (sessionId: string, isDone: boolean) => void;
 }) {
-  const [doneIds, setDoneIds] = useState<Set<string>>(() => loadPlanDone(todayStr));
-
-  const toggleDone = (id: string) => {
-    setDoneIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      savePlanDone(todayStr, next);
-      return next;
-    });
-  };
-
-  const doneCount = studyPlanItems.filter(({ session }) => doneIds.has(session.id)).length;
+  const doneCount = studyPlanItems.filter(({ session }) => session.planCompletedDate === todayStr).length;
 
   /* Group by timeSlot in canonical order, skip empty groups */
   const groups = TIME_SLOT_ORDER
@@ -353,7 +319,7 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick }: {
                 <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
                   {items.map(({ session, subject }) => {
                     const delay = (cardIndex++) * 0.05;
-                    const isDone = doneIds.has(session.id);
+                    const isDone = session.planCompletedDate === todayStr;
                     return (
                       <motion.div
                         key={session.id}
@@ -395,7 +361,7 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick }: {
                           <Pencil className="w-4 h-4 text-muted-foreground" />
                         </button>
                         <button
-                          onClick={() => toggleDone(session.id)}
+                          onClick={() => onToggleDone(session.id, !isDone)}
                           className={cn(
                             "w-12 h-12 rounded-xl shrink-0 flex items-center justify-center transition-all duration-200 border-2",
                             isDone
@@ -503,6 +469,12 @@ export default function Home() {
     }, 400);
   };
 
+  const handleTogglePlanDone = (sessionId: string, isDone: boolean) => {
+    saveSessions(sessions.map(s =>
+      s.id === sessionId ? { ...s, planCompletedDate: isDone ? todayStr : undefined } : s
+    ));
+  };
+
   const handleEditSave = (updated: ReviewSession) => { saveSessions(sessions.map(s => s.id === updated.id ? updated : s)); setEditingSession(null); };
   const handleDelete = (sessionId: string) => { saveSessions(sessions.filter(s => s.id !== sessionId)); setEditingSession(null); setDetailItem(null); };
   const getSessionRecords = (id: string) => sessions.find(s => s.id === id)?.records ?? [];
@@ -520,6 +492,7 @@ export default function Home() {
               navigate={navigate}
               todayStr={todayStr}
               onEditClick={setEditingSession}
+              onToggleDone={handleTogglePlanDone}
             />
           )}
 
