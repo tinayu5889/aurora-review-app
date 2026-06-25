@@ -92,6 +92,11 @@ export function EditSessionSheet({ session, subjects, open, onClose, onSave, onD
   if (!state || !session) return null;
 
   const handleFirstDateChange = (newDate: string) => {
+    // Single-day session (no review schedule) — just update the date, no recalculation
+    if (state.reviewDates.length === 0) {
+      setState(s => s ? { ...s, firstDate: newDate } : s);
+      return;
+    }
     const newReviewDates = generateReviewDates(newDate);
     // Re-map completedDates: keep completed status by index position
     const prevCompleted = state.reviewDates.map(d => state.completedDates.includes(d));
@@ -243,9 +248,11 @@ export function EditSessionSheet({ session, subjects, open, onClose, onSave, onD
                 className="h-12 rounded-2xl border-2 border-border/50 focus-visible:ring-primary text-base font-medium"
                 data-testid="edit-input-first-date"
               />
-              <p className="text-xs text-amber-600 font-medium mt-1.5 bg-amber-50 px-3 py-1.5 rounded-xl">
-                修改日期後，系統會重新計算所有複習日期
-              </p>
+              {state.reviewDates.length > 0 && (
+                <p className="text-xs text-amber-600 font-medium mt-1.5 bg-amber-50 px-3 py-1.5 rounded-xl">
+                  修改日期後，系統會重新計算所有複習日期
+                </p>
+              )}
             </section>
           </div>
 
