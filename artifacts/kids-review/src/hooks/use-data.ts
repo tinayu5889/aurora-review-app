@@ -66,6 +66,8 @@ function migrateSession(s: ReviewSession): ReviewSession {
   return {
     ...s,
     records: s.records ?? [],
+    reviewDates: s.reviewDates ?? [],
+    completedDates: s.completedDates ?? [],
     learningType: s.learningType ?? "reading",
     timeSlot: s.timeSlot ?? "none",
   };
@@ -146,15 +148,12 @@ export function useData() {
         } else {
           /* ── Use Supabase data ── */
           const subjects = sbSubjects.length > 0 ? sbSubjects : INITIAL_SUBJECTS;
-          const sessions = purgeCompletedSingleDaySessions(sbSessions.map(migrateSession));
+          const sessions = sbSessions.map(migrateSession);
           const goals = sbGoals;
           const excluded = purgeExpiredPeriods(sbExcluded);
 
           if (excluded.length !== sbExcluded.length) {
             syncTable("kr_excluded_periods", familyId, excluded).catch(() => {});
-          }
-          if (sessions.length !== sbSessions.length) {
-            syncTable("kr_sessions", familyId, sessions).catch(() => {});
           }
 
           applyState(subjects, sessions, goals, excluded);
@@ -191,9 +190,9 @@ export function useData() {
       const subjects: Subject[] = storedSubjects ? JSON.parse(storedSubjects) : INITIAL_SUBJECTS;
       if (!storedSubjects) localStorage.setItem("kr_subjects", JSON.stringify(INITIAL_SUBJECTS));
 
-      const sessions: ReviewSession[] = purgeCompletedSingleDaySessions(
-        storedSessions ? (JSON.parse(storedSessions) as ReviewSession[]).map(migrateSession) : []
-      );
+      const sessions: ReviewSession[] = storedSessions
+        ? (JSON.parse(storedSessions) as ReviewSession[]).map(migrateSession)
+        : [];
 
       const goals: Goal[] = storedGoals ? JSON.parse(storedGoals) : [];
 

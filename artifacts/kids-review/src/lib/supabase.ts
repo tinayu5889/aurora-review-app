@@ -20,11 +20,30 @@ export async function syncTable<T extends { id: string }>(
   items: T[]
 ): Promise<void> {
   if (!supabase) return;
-  await supabase.from(table).delete().eq("family_id", familyId);
+
+  const currentIds = new Set(items.map(i => i.id));
+
+  // 1. Get existing IDs from Supabase
+  const { data: existing } = await supabase
+    .from(table)
+    .select("id")
+    .eq("family_id", familyId);
+
+  // 2. Delete only rows that no longer exist
+  const toDelete = (existing ?? []).map(r => r.id).filter(id => !currentIds.has(id));
+  if (toDelete.length > 0) {
+    await supabase
+      .from(table)
+      .delete()
+      .eq("family_id", familyId)
+      .in("id", toDelete);
+  }
+
+  // 3. Upsert current items
   if (items.length > 0) {
     await supabase
       .from(table)
-      .insert(items.map(item => ({ family_id: familyId, id: item.id, data: item })));
+      .upsert(items.map(item => ({ family_id: familyId, id: item.id, data: item })));
   }
 }
 
