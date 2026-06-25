@@ -3,9 +3,10 @@ import { format, addDays, startOfMonth } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { BookOpen, CalendarCheck, CheckCircle2, Circle, Target } from "lucide-react";
+import { BookOpen, CalendarCheck, CheckCircle2, Circle, Target, Pencil } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, Goal } from "@/hooks/use-data";
+import { useData, Goal, ReviewSession } from "@/hooks/use-data";
+import { EditSessionSheet } from "@/components/edit-session-sheet";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -19,9 +20,10 @@ type DayButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export default function CalendarPage() {
-  const { subjects, sessions, excludedPeriods, goals, saveGoals, isLoaded } = useData();
+  const { subjects, sessions, saveSessions, excludedPeriods, goals, saveGoals, isLoaded } = useData();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [confirmGoal, setConfirmGoal] = useState<Goal | null>(null);
+  const [editingSession, setEditingSession] = useState<ReviewSession | null>(null);
 
   /* ── Build lookup sets ── */
   const planDaysSet = useMemo(() => {
@@ -288,10 +290,17 @@ export default function CalendarPage() {
                           <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0", item.subject?.color ?? "bg-muted")}>
                             {item.subject?.emoji}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="text-xs font-bold text-muted-foreground">{item.subject?.name}</p>
                             <p className="text-sm font-bold text-foreground truncate">{item.scope}</p>
                           </div>
+                          <button
+                            onClick={() => setEditingSession(sessions.find(s => s.id === item.id) ?? null)}
+                            className="w-8 h-8 rounded-xl bg-white/70 border border-rose-200 flex items-center justify-center shrink-0 hover:bg-white transition-colors active:scale-90"
+                            aria-label="編輯計畫"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-rose-500" />
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -384,6 +393,22 @@ export default function CalendarPage() {
           </div>
         </aside>
       </div>
+
+      {/* Edit session sheet */}
+      <EditSessionSheet
+        session={editingSession}
+        subjects={subjects}
+        open={!!editingSession}
+        onClose={() => setEditingSession(null)}
+        onSave={updated => {
+          saveSessions(sessions.map(s => s.id === updated.id ? updated : s));
+          setEditingSession(null);
+        }}
+        onDelete={id => {
+          saveSessions(sessions.filter(s => s.id !== id));
+          setEditingSession(null);
+        }}
+      />
 
       {/* Confirm complete → delete */}
       <AlertDialog open={!!confirmGoal} onOpenChange={open => !open && setConfirmGoal(null)}>
