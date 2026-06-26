@@ -55,6 +55,23 @@ function getExcludedPeriodsInRange(dates: string[], periods: ExcludedPeriod[]): 
   return result;
 }
 
+/** 堂數模式：從 startDate 起，依指定星期，取前 count 個日期（不略過排除日） */
+function generateSeriesDatesRaw(
+  startDate: string,
+  weekdays: number[],
+  count: number,
+): string[] {
+  if (weekdays.length === 0 || count < 1) return [];
+  const dates: string[] = [];
+  let cur = new Date(startDate + "T00:00:00");
+  while (dates.length < count) {
+    const dateStr = format(cur, "yyyy-MM-dd");
+    if (weekdays.includes(cur.getDay())) dates.push(dateStr);
+    cur = addDays(cur, 1);
+  }
+  return dates;
+}
+
 /** 堂數模式：從 startDate 起，依指定星期，取前 count 個非排除日 */
 function generateSeriesDates(
   startDate: string,
@@ -170,9 +187,14 @@ export default function AddLearning() {
 
     if (dateMode === "series") {
       if (!seriesStart || seriesWeekdays.length === 0 || seriesCount < 1) return;
-      const candidateDates = generateSeriesDates(seriesStart, seriesWeekdays, seriesCount, excludedPeriods);
-      if (candidateDates.length === 0) return;
-      checkDuplicates(candidateDates, 0);
+      const rawDates = generateSeriesDatesRaw(seriesStart, seriesWeekdays, seriesCount);
+      if (rawDates.length === 0) return;
+      const hitPeriods = getExcludedPeriodsInRange(rawDates, excludedPeriods);
+      if (hitPeriods.length > 0) {
+        setExcludedDialog({ hitPeriods, allDates: rawDates });
+        return;
+      }
+      checkDuplicates(rawDates, 0);
       return;
     }
 
@@ -620,7 +642,7 @@ export default function AddLearning() {
                   <div className="flex items-center gap-2 px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-xl">
                     <ListOrdered className="w-4 h-4 text-primary shrink-0" />
                     <p className="text-xs font-bold text-primary">
-                      共將建立 <span className="text-base">{previewCount}</span> 堂課程，已自動略過排除日
+                      共將建立 <span className="text-base">{previewCount}</span> 堂課程
                     </p>
                   </div>
                 )}
@@ -692,7 +714,9 @@ export default function AddLearning() {
             <DialogTitle className="text-xl font-bold text-center">排除日提醒</DialogTitle>
           </DialogHeader>
           <div className="text-sm text-center text-muted-foreground mb-4">
-            {dateMode === "range"
+            {dateMode === "series"
+              ? `課程堂數中包含以下排除日：`
+              : dateMode === "range"
               ? "此日期範圍包含以下排除日："
               : "此日期位於排除日區間："}
           </div>
@@ -708,6 +732,11 @@ export default function AddLearning() {
               ))}
             </div>
           )}
+          {dateMode === "series" && (
+            <p className="text-xs text-muted-foreground text-center mb-4">
+              略過排除日會自動補齊，確保仍建立 {seriesCount} 堂課。
+            </p>
+          )}
           {dateMode === "range" && (
             <p className="text-xs text-muted-foreground text-center mb-4">是否仍要新增這些日期的讀書計畫？</p>
           )}
@@ -716,7 +745,42 @@ export default function AddLearning() {
           )}
 
           <DialogFooter className="flex-col gap-2 sm:flex-col">
-            {dateMode === "range" ? (
+            {dateMode === "series" ? (
+              <>
+                <Button
+                  className="w-full h-12 rounded-2xl font-bold"
+                  onClick={() => {
+                    if (!excludedDialog) return;
+                    setExcludedDialog(null);
+                    const skipped = generateSeriesDatesRaw(seriesStart, seriesWeekdays, seriesCount)
+                      .filter(d => isDateExcluded(d, excludedPeriods)).length;
+                    const dates = generateSeriesDates(seriesStart, seriesWeekdays, seriesCount, excludedPeriods);
+                    checkDuplicates(dates, skipped);
+                  }}
+                >
+                  略過排除日（補齊 {seriesCount} 堂）
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full h-12 rounded-2xl font-bold border-2"
+                  onClick={() => {
+                    if (!excludedDialog) return;
+                    const all = excludedDialog.allDates;
+                    setExcludedDialog(null);
+                    checkDuplicates(all, 0);
+                  }}
+                >
+                  包含排除日（照原日期）
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full h-11 rounded-2xl font-bold text-muted-foreground"
+                  onClick={() => setExcludedDialog(null)}
+                >
+                  取消
+                </Button>
+              </>
+            ) : dateMode === "range" ? (
               <>
                 <Button
                   className="w-full h-12 rounded-2xl font-bold"
