@@ -220,20 +220,20 @@ export function EditSessionSheet({ session, subjects, open, onClose, onSave, onD
             {/* Learning type */}
             <section className="mb-5">
               <p className="text-sm font-bold text-muted-foreground mb-3">學習類型</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {LEARNING_TYPE_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
                     onClick={() => setState(s => s ? { ...s, learningType: opt.value } : s)}
                     className={cn(
-                      "flex flex-col items-center justify-center py-3 rounded-2xl border-[3px] transition-all active:scale-95",
+                      "flex items-center gap-1.5 px-3 h-9 rounded-full border-2 text-sm font-bold transition-all active:scale-95",
                       state.learningType === opt.value
-                        ? "border-violet-400 bg-violet-50 text-violet-700 shadow-sm scale-105"
+                        ? "border-violet-400 bg-violet-50 text-violet-700 shadow-sm"
                         : "bg-card border-border/50 text-foreground hover:bg-muted"
                     )}
                   >
-                    <span className="text-2xl mb-1">{opt.emoji}</span>
-                    <span className="text-xs font-bold">{opt.label}</span>
+                    <span>{opt.emoji}</span>
+                    <span>{opt.label}</span>
                   </button>
                 ))}
               </div>

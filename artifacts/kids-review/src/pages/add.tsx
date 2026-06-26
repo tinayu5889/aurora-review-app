@@ -321,21 +321,21 @@ export default function AddLearning() {
           {/* ── 學習類型 ── */}
           <div className="space-y-2.5">
             <Label className="text-base font-bold text-foreground ml-1">學習類型</Label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-wrap gap-2">
               {LEARNING_TYPE_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setLearningType(opt.value)}
                   className={cn(
-                    "flex flex-col items-center justify-center py-3 rounded-2xl border-[3px] transition-all active:scale-95",
+                    "flex items-center gap-1.5 px-3 h-9 rounded-full border-2 text-sm font-bold transition-all active:scale-95",
                     learningType === opt.value
-                      ? "border-violet-400 bg-violet-50 text-violet-700 shadow-sm scale-105"
+                      ? "border-violet-400 bg-violet-50 text-violet-700 shadow-sm"
                       : "bg-card border-border/50 hover:bg-muted text-foreground"
                   )}
                 >
-                  <span className="text-2xl mb-1">{opt.emoji}</span>
-                  <span className="text-xs font-bold">{opt.label}</span>
+                  <span>{opt.emoji}</span>
+                  <span>{opt.label}</span>
                 </button>
               ))}
             </div>
