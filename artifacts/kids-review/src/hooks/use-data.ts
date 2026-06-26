@@ -16,7 +16,7 @@ export type ReviewRecord = {
   completedAt: string;
 };
 
-export type LearningType = "video" | "quiz" | "reading";
+export type LearningType = "video" | "quiz" | "reading" | "extracurricular";
 
 export type TimeSlot = "none" | "morning" | "afternoon" | "evening";
 

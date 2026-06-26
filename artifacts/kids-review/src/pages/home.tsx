@@ -14,9 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 const LEARNING_TYPE_LABELS: Record<LearningType, { emoji: string; label: string }> = {
-  video:   { emoji: "🎬", label: "看影片" },
-  quiz:    { emoji: "📝", label: "測驗題" },
-  reading: { emoji: "📖", label: "閱讀"   },
+  video:           { emoji: "🎬", label: "看影片" },
+  quiz:            { emoji: "📝", label: "測驗題" },
+  reading:         { emoji: "📖", label: "閱讀"   },
+  extracurricular: { emoji: "🏃", label: "課外"   },
 };
 
 type DueItem = {

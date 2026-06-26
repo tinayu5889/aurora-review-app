@@ -34,7 +34,7 @@ export default function CalendarPage() {
   }, [sessions, isLoaded]);
 
   const reviewDaysMap = useMemo(() => {
-    const m = new Map<string, { sessionId: string; scope: string; round: number; isCompleted: boolean; subject: ReturnType<typeof subjects.find> }[]>();
+    const m = new Map<string, { sessionId: string; scope: string; round: number; isCompleted: boolean; timeSlot: string; subject: ReturnType<typeof subjects.find> }[]>();
     if (!isLoaded) return m;
     sessions.forEach(session => {
       session.reviewDates.forEach((dateStr, idx) => {
@@ -44,6 +44,7 @@ export default function CalendarPage() {
           scope: session.scope,
           round: idx + 1,
           isCompleted: session.completedDates.includes(dateStr),
+          timeSlot: session.timeSlot ?? "none",
           subject: subjects.find(s => s.id === session.subjectId),
         }]);
       });
@@ -157,18 +158,28 @@ export default function CalendarPage() {
   /* ── Selected date data ── */
   const selectedDateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
 
-  const planItems = useMemo(() =>
-    selectedDateStr ? sessions.filter(s => s.firstDate === selectedDateStr).map(s => ({
-      ...s,
-      subject: subjects.find(sub => sub.id === s.subjectId),
-    })) : [],
-    [selectedDateStr, sessions, subjects]
-  );
+  const TIME_SLOT_SORT_ORDER = ["morning", "afternoon", "evening", "none"];
 
-  const reviewItems = useMemo(() =>
-    selectedDateStr ? (reviewDaysMap.get(selectedDateStr) ?? []) : [],
-    [selectedDateStr, reviewDaysMap]
-  );
+  const planItems = useMemo(() => {
+    if (!selectedDateStr) return [];
+    return sessions
+      .filter(s => s.firstDate === selectedDateStr)
+      .map(s => ({ ...s, subject: subjects.find(sub => sub.id === s.subjectId) }))
+      .sort((a, b) =>
+        TIME_SLOT_SORT_ORDER.indexOf(a.timeSlot ?? "none") -
+        TIME_SLOT_SORT_ORDER.indexOf(b.timeSlot ?? "none")
+      );
+  }, [selectedDateStr, sessions, subjects]);
+
+  const reviewItems = useMemo(() => {
+    if (!selectedDateStr) return [];
+    return (reviewDaysMap.get(selectedDateStr) ?? [])
+      .slice()
+      .sort((a, b) =>
+        TIME_SLOT_SORT_ORDER.indexOf(a.timeSlot) -
+        TIME_SLOT_SORT_ORDER.indexOf(b.timeSlot)
+      );
+  }, [selectedDateStr, reviewDaysMap]);
 
   const excludedNote = useMemo(() =>
     selectedDateStr

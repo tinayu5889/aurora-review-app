@@ -41,9 +41,10 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 const LEARNING_TYPE_OPTIONS: { value: LearningType; emoji: string; label: string }[] = [
-  { value: "video",   emoji: "🎬", label: "看影片" },
-  { value: "quiz",    emoji: "📝", label: "測驗題" },
-  { value: "reading", emoji: "📖", label: "閱讀"   },
+  { value: "video",           emoji: "🎬", label: "看影片" },
+  { value: "quiz",            emoji: "📝", label: "測驗題" },
+  { value: "reading",         emoji: "📖", label: "閱讀"   },
+  { value: "extracurricular", emoji: "🏃", label: "課外"   },
 ];
 
 type EditState = {
