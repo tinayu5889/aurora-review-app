@@ -350,7 +350,9 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
                           <p className={cn("text-[11px] font-medium mt-0.5", isDone ? "text-green-600/60" : "text-violet-500")}>
                             {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].emoji}{" "}
                             {LEARNING_TYPE_LABELS[session.learningType ?? "reading"].label}
-                            {session.reviewDates.length > 0 ? " · 複習排程已自動建立 ✓" : " · 單次學習"}
+                            {session.sessionNumber != null && session.totalSessions != null
+                              ? ` · 第 ${session.sessionNumber} 堂／共 ${session.totalSessions} 堂`
+                              : session.reviewDates.length > 0 ? " · 複習排程已自動建立 ✓" : " · 單次學習"}
                           </p>
                         </div>
                         <button

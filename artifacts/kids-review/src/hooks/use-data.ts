@@ -40,6 +40,10 @@ export type ReviewSession = {
   completedDates: string[];
   records: ReviewRecord[];
   planCompletedDate?: string;
+  /** 系列課程欄位 */
+  seriesId?: string;
+  sessionNumber?: number;
+  totalSessions?: number;
 };
 
 export type Goal = {

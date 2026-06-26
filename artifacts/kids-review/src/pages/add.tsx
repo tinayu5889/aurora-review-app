@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   CheckCircle2, CalendarCheck, BookOpenCheck, CalendarX2,
-  Calendar, CalendarRange,
+  Calendar, CalendarRange, ListOrdered,
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useData, LearningType, TimeSlot, TIME_SLOT_LABELS, TIME_SLOT_ORDER, ExcludedPeriod, ReviewSession } from "@/hooks/use-data";
@@ -26,7 +26,7 @@ const LEARNING_TYPE_OPTIONS: { value: LearningType; emoji: string; label: string
   { value: "reading", emoji: "📖", label: "閱讀"   },
 ];
 
-type DateMode = "single" | "range";
+type DateMode = "single" | "range" | "series";
 type Frequency = "daily" | "weekdays" | "custom";
 
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -54,6 +54,26 @@ function getExcludedPeriodsInRange(dates: string[], periods: ExcludedPeriod[]): 
   return result;
 }
 
+/** 堂數模式：從 startDate 起，依指定星期，取前 count 個非排除日 */
+function generateSeriesDates(
+  startDate: string,
+  weekdays: number[],
+  count: number,
+  excludedPeriods: ExcludedPeriod[],
+): string[] {
+  if (weekdays.length === 0 || count < 1) return [];
+  const dates: string[] = [];
+  let cur = new Date(startDate + "T00:00:00");
+  while (dates.length < count) {
+    const dateStr = format(cur, "yyyy-MM-dd");
+    if (weekdays.includes(cur.getDay()) && !isDateExcluded(dateStr, excludedPeriods)) {
+      dates.push(dateStr);
+    }
+    cur = addDays(cur, 1);
+  }
+  return dates;
+}
+
 function generateDatesInRange(
   startDate: string,
   endDate: string,
@@ -79,7 +99,10 @@ function hasDuplicate(sessions: ReviewSession[], subjectId: string, scope: strin
   return sessions.some(s => s.subjectId === subjectId && s.scope === scope.trim() && s.firstDate === date);
 }
 
-function buildSession(subjectId: string, scope: string, learningType: LearningType, timeSlot: TimeSlot, includeReview: boolean, date: string): ReviewSession {
+function buildSession(
+  subjectId: string, scope: string, learningType: LearningType, timeSlot: TimeSlot, includeReview: boolean, date: string,
+  series?: { seriesId: string; sessionNumber: number; totalSessions: number },
+): ReviewSession {
   return {
     id: newId(),
     subjectId,
@@ -90,6 +113,7 @@ function buildSession(subjectId: string, scope: string, learningType: LearningTy
     reviewDates: includeReview ? generateReviewDates(date) : [],
     completedDates: [],
     records: [],
+    ...series,
   };
 }
 
@@ -115,6 +139,11 @@ export default function AddLearning() {
   const [frequency, setFrequency] = useState<Frequency>("daily");
   const [customDays, setCustomDays] = useState<number[]>([1, 3, 5]); // Mon Wed Fri
 
+  /* Series mode */
+  const [seriesStart, setSeriesStart] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [seriesWeekdays, setSeriesWeekdays] = useState<number[]>([]);
+  const [seriesCount, setSeriesCount] = useState(10);
+
   /* Dialog state */
   const [excludedDialog, setExcludedDialog] = useState<{
     hitPeriods: ExcludedPeriod[];
@@ -137,6 +166,14 @@ export default function AddLearning() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSubject || !scope.trim()) return;
+
+    if (dateMode === "series") {
+      if (!seriesStart || seriesWeekdays.length === 0 || seriesCount < 1) return;
+      const candidateDates = generateSeriesDates(seriesStart, seriesWeekdays, seriesCount, excludedPeriods);
+      if (candidateDates.length === 0) return;
+      checkDuplicates(candidateDates, 0);
+      return;
+    }
 
     let candidateDates: string[];
     if (dateMode === "single") {
@@ -180,7 +217,19 @@ export default function AddLearning() {
   /* ── Step 4: build and save ── */
   const doSubmit = (dates: string[], skippedExcluded: number) => {
     setIsSubmitting(true);
-    const newSessions = dates.map(d => buildSession(selectedSubject, scope, learningType, timeSlot, includeReview, d));
+    let newSessions;
+    if (dateMode === "series") {
+      const seriesId = newId();
+      newSessions = dates.map((d, i) =>
+        buildSession(selectedSubject, scope, learningType, timeSlot, includeReview, d, {
+          seriesId,
+          sessionNumber: i + 1,
+          totalSessions: dates.length,
+        })
+      );
+    } else {
+      newSessions = dates.map(d => buildSession(selectedSubject, scope, learningType, timeSlot, includeReview, d));
+    }
     saveSessions([...sessions, ...newSessions]);
 
     const count = newSessions.length;
@@ -197,17 +246,22 @@ export default function AddLearning() {
   const isFormValid = useMemo(() => {
     if (!selectedSubject || !scope.trim()) return false;
     if (dateMode === "single") return !!singleDate;
+    if (dateMode === "series") return !!seriesStart && seriesWeekdays.length > 0 && seriesCount >= 1;
     if (!rangeStart || !rangeEnd || rangeEnd < rangeStart) return false;
     if (frequency === "custom" && customDays.length === 0) return false;
     return true;
-  }, [selectedSubject, scope, dateMode, singleDate, rangeStart, rangeEnd, frequency, customDays]);
+  }, [selectedSubject, scope, dateMode, singleDate, rangeStart, rangeEnd, frequency, customDays, seriesStart, seriesWeekdays, seriesCount]);
 
-  /* Preview count for range mode */
+  /* Preview count for range / series mode */
   const previewCount = useMemo(() => {
+    if (dateMode === "series") {
+      if (!seriesStart || seriesWeekdays.length === 0 || seriesCount < 1) return 0;
+      return generateSeriesDates(seriesStart, seriesWeekdays, seriesCount, excludedPeriods).length;
+    }
     if (dateMode !== "range" || !rangeStart || !rangeEnd || rangeEnd < rangeStart) return 0;
     if (frequency === "custom" && customDays.length === 0) return 0;
     return generateDatesInRange(rangeStart, rangeEnd, frequency, customDays).length;
-  }, [dateMode, rangeStart, rangeEnd, frequency, customDays]);
+  }, [dateMode, rangeStart, rangeEnd, frequency, customDays, seriesStart, seriesWeekdays, seriesCount, excludedPeriods]);
 
   if (!isLoaded) return null;
 
@@ -334,7 +388,7 @@ export default function AddLearning() {
             <Label className="text-base font-bold text-foreground ml-1">學習日期</Label>
 
             {/* Mode toggle */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setDateMode("single")}
@@ -360,6 +414,19 @@ export default function AddLearning() {
               >
                 <CalendarRange className="w-4 h-4" />
                 日期範圍
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateMode("series")}
+                className={cn(
+                  "flex items-center justify-center gap-2 py-2.5 rounded-2xl border-[3px] transition-all active:scale-95 text-sm font-bold",
+                  dateMode === "series"
+                    ? "border-primary bg-primary/10 text-primary scale-105 shadow-sm"
+                    : "bg-card border-border/50 hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <ListOrdered className="w-4 h-4" />
+                堂數
               </button>
             </div>
 
@@ -479,6 +546,85 @@ export default function AddLearning() {
                 )}
               </div>
             )}
+
+            {/* Series mode */}
+            {dateMode === "series" && (
+              <div className="space-y-4 bg-card border-2 border-border/50 rounded-2xl p-4 shadow-sm">
+                {/* Start date */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-muted-foreground ml-1">開始日期</p>
+                  <Input
+                    type="date"
+                    value={seriesStart}
+                    onChange={e => setSeriesStart(e.target.value)}
+                    className="h-11 text-sm font-bold rounded-xl border-2 border-border/50 focus-visible:ring-primary"
+                  />
+                </div>
+
+                {/* Weekday picker */}
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-muted-foreground ml-1">上課星期（可複選）</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {[0, 1, 2, 3, 4, 5, 6].map(dow => (
+                      <button
+                        key={dow}
+                        type="button"
+                        onClick={() => setSeriesWeekdays(prev =>
+                          prev.includes(dow) ? prev.filter(d => d !== dow) : [...prev, dow].sort()
+                        )}
+                        className={cn(
+                          "w-10 h-10 rounded-xl text-xs font-bold border-2 transition-all",
+                          seriesWeekdays.includes(dow)
+                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                            : "border-border/50 bg-muted/30 text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        週{WEEKDAY_LABELS[dow]}
+                      </button>
+                    ))}
+                  </div>
+                  {seriesWeekdays.length === 0 && (
+                    <p className="text-xs text-rose-500 font-medium ml-1">請至少選擇一個星期</p>
+                  )}
+                </div>
+
+                {/* Session count */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-muted-foreground ml-1">總堂數</p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSeriesCount(c => Math.max(1, c - 1))}
+                      className="w-10 h-10 rounded-xl border-2 border-border/50 bg-muted text-lg font-bold hover:bg-muted/80 transition-colors flex items-center justify-center"
+                    >−</button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={seriesCount}
+                      onChange={e => setSeriesCount(Math.max(1, Math.min(99, parseInt(e.target.value) || 1)))}
+                      className="w-20 h-10 text-center text-lg font-bold rounded-xl border-2 border-border/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSeriesCount(c => Math.min(99, c + 1))}
+                      className="w-10 h-10 rounded-xl border-2 border-border/50 bg-muted text-lg font-bold hover:bg-muted/80 transition-colors flex items-center justify-center"
+                    >＋</button>
+                    <span className="text-sm font-bold text-muted-foreground">堂</span>
+                  </div>
+                </div>
+
+                {/* Preview */}
+                {previewCount > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-xl">
+                    <ListOrdered className="w-4 h-4 text-primary shrink-0" />
+                    <p className="text-xs font-bold text-primary">
+                      共將建立 <span className="text-base">{previewCount}</span> 堂課程，已自動略過排除日
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── 時段 ── */}
@@ -522,7 +668,9 @@ export default function AddLearning() {
                   <CheckCircle2 className="w-6 h-6" /> 建立計畫成功！
                 </motion.div>
               ) : (
-                dateMode === "range" && previewCount > 0
+                dateMode === "series" && previewCount > 0
+                  ? `建立 ${previewCount} 堂課程！`
+                  : dateMode === "range" && previewCount > 0
                   ? `建立 ${previewCount} 筆讀書計畫！`
                   : "開始計畫！"
               )}
