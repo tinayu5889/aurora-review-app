@@ -1,12 +1,20 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Star, CalendarDays, TrendingUp, Pencil } from "lucide-react";
+import {
+  ChevronDown, ChevronUp, Star, CalendarDays, TrendingUp,
+  Pencil, CheckSquare, Square, Trash2, X,
+} from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useData, ReviewRecord, ReviewSession, LearningType, TIME_SLOT_LABELS } from "@/hooks/use-data";
 import { EditSessionSheet } from "@/components/edit-session-sheet";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 type Difficulty = "easy" | "normal" | "hard";
@@ -18,9 +26,9 @@ const LEARNING_TYPE_LABELS: Record<LearningType, { emoji: string; label: string 
 };
 
 const DIFFICULTY_MAP: Record<Difficulty, { label: string; color: string }> = {
-  easy: { label: "很簡單", color: "text-green-600 bg-green-100" },
-  normal: { label: "普通", color: "text-amber-600 bg-amber-100" },
-  hard: { label: "很難", color: "text-red-600 bg-red-100" },
+  easy:   { label: "很簡單", color: "text-green-600 bg-green-100" },
+  normal: { label: "普通",   color: "text-amber-600 bg-amber-100" },
+  hard:   { label: "很難",   color: "text-red-600 bg-red-100"     },
 };
 
 function StarDisplay({ value, size = "sm" }: { value: number; size?: "sm" | "xs" }) {
@@ -28,10 +36,7 @@ function StarDisplay({ value, size = "sm" }: { value: number; size?: "sm" | "xs"
   return (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map(n => (
-        <Star
-          key={n}
-          className={cn(cls, n <= Math.round(value) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/20")}
-        />
+        <Star key={n} className={cn(cls, n <= Math.round(value) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/20")} />
       ))}
     </div>
   );
@@ -83,10 +88,76 @@ function RecordRow({ rec, index }: { rec: ReviewRecord; index: number }) {
   );
 }
 
+/* ── Inline review-round dots ── */
+function ReviewDots({
+  reviewDates,
+  completedDates,
+  today,
+}: {
+  reviewDates: string[];
+  completedDates: string[];
+  today: string;
+}) {
+  if (reviewDates.length === 0) {
+    return (
+      <span className="text-[10px] font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+        單次學習
+      </span>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {reviewDates.map((d, i) => {
+        const done    = completedDates.includes(d);
+        const overdue = !done && d < today;
+        return (
+          <div
+            key={d}
+            title={`第 ${i + 1} 次：${d}${done ? " ✓" : overdue ? " 逾期" : ""}`}
+            className={cn(
+              "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+              done    ? "bg-green-500 text-white"
+              : overdue ? "bg-red-400 text-white"
+              :           "bg-muted text-muted-foreground"
+            )}
+          >
+            {i + 1}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function History() {
   const { subjects, sessions, saveSessions, isLoaded } = useData();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId]       = useState<string | null>(null);
   const [editingSession, setEditingSession] = useState<ReviewSession | null>(null);
+
+  /* ── Select mode ── */
+  const [selectMode, setSelectMode]   = useState(false);
+  const [selected, setSelected]       = useState<Set<string>>(new Set());
+  const [confirmBulk, setConfirmBulk] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+  };
+
+  const handleBulkDelete = () => {
+    saveSessions(sessions.filter(s => !selected.has(s.id)));
+    exitSelectMode();
+    setConfirmBulk(false);
+    setExpandedId(null);
+  };
 
   const handleSave = (updated: ReviewSession) => {
     saveSessions(sessions.map(s => s.id === updated.id ? updated : s));
@@ -102,9 +173,9 @@ export default function History() {
     if (!isLoaded) return [];
     return sessions
       .map(session => {
-        const subject = subjects.find(s => s.id === session.subjectId);
-        const completedCount = session.completedDates.length;
-        const totalCount = session.reviewDates.length;
+        const subject         = subjects.find(s => s.id === session.subjectId);
+        const completedCount  = session.completedDates.length;
+        const totalCount      = session.reviewDates.length;
         const records: ReviewRecord[] = session.records || [];
         const avgUnderstanding =
           records.length > 0
@@ -115,7 +186,6 @@ export default function History() {
             ? [...session.completedDates].sort().at(-1)
             : null;
         const nextPending = session.reviewDates.find(d => !session.completedDates.includes(d)) ?? null;
-
         return { session, subject, completedCount, totalCount, records, avgUnderstanding, lastCompleted, nextPending };
       })
       .sort((a, b) => {
@@ -129,10 +199,30 @@ export default function History() {
 
   return (
     <Layout>
-      <div className="p-6 pb-28">
-        <header className="mb-6 pt-4">
-          <h1 className="text-3xl font-bold text-foreground">學習歷程總表</h1>
-          <p className="text-muted-foreground mt-1 font-medium">查看所有學習的完整紀錄</p>
+      <div className="p-6 pb-32">
+        {/* Header */}
+        <header className="mb-6 pt-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">學習歷程總表</h1>
+            <p className="text-muted-foreground mt-1 font-medium">查看所有學習的完整紀錄</p>
+          </div>
+          {enrichedSessions.length > 0 && (
+            selectMode ? (
+              <button
+                onClick={exitSelectMode}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-muted text-muted-foreground font-bold text-sm"
+              >
+                <X className="w-4 h-4" /> 取消
+              </button>
+            ) : (
+              <button
+                onClick={() => setSelectMode(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-muted text-muted-foreground hover:bg-muted/80 font-bold text-sm transition-colors"
+              >
+                <CheckSquare className="w-4 h-4" /> 選取
+              </button>
+            )
+          )}
         </header>
 
         {!isLoaded ? null : enrichedSessions.length === 0 ? (
@@ -148,10 +238,11 @@ export default function History() {
             <p className="text-muted-foreground text-sm mt-1">先去「新增學習」建立第一筆紀錄吧！</p>
           </motion.div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
             {enrichedSessions.map(({ session, subject, completedCount, totalCount, records, avgUnderstanding, lastCompleted, nextPending }, index) => {
-              const isExpanded = expandedId === session.id;
-              const isAllDone = completedCount === totalCount;
+              const isExpanded = !selectMode && expandedId === session.id;
+              const isSelected = selected.has(session.id);
+              const isAllDone  = totalCount > 0 && completedCount === totalCount;
               const hasOverdue = session.reviewDates.some(d => d < today && !session.completedDates.includes(d));
 
               return (
@@ -159,20 +250,35 @@ export default function History() {
                   key={session.id}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.06 }}
-                  data-testid={`card-history-${session.id}`}
+                  transition={{ delay: index * 0.04 }}
                 >
                   <Card className={cn(
-                    "border-2 rounded-3xl shadow-sm overflow-hidden transition-colors",
-                    isAllDone ? "border-green-400/40" : hasOverdue ? "border-red-300/50" : "border-border/50"
+                    "border-2 rounded-3xl shadow-sm overflow-hidden transition-all",
+                    isSelected  ? "border-primary ring-2 ring-primary/30"
+                    : isAllDone ? "border-green-400/40"
+                    : hasOverdue ? "border-red-300/50"
+                    :              "border-border/50"
                   )}>
-                    {/* Header row — tap to expand */}
+                    {/* Header row */}
                     <button
                       className="w-full p-4 text-left active:bg-muted/30 transition-colors"
-                      onClick={() => setExpandedId(isExpanded ? null : session.id)}
-                      data-testid={`toggle-history-${session.id}`}
+                      onClick={() => {
+                        if (selectMode) { toggleSelect(session.id); return; }
+                        setExpandedId(isExpanded ? null : session.id);
+                      }}
                     >
                       <div className="flex items-center gap-3 mb-3">
+                        {/* Select checkbox */}
+                        {selectMode && (
+                          <div className={cn(
+                            "w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors",
+                            isSelected ? "bg-primary border-primary text-white" : "border-muted-foreground/40"
+                          )}>
+                            {isSelected && <CheckSquare className="w-4 h-4" />}
+                            {!isSelected && <Square className="w-4 h-4 text-transparent" />}
+                          </div>
+                        )}
+
                         <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 shadow-inner", subject?.color || "bg-muted")}>
                           {subject?.emoji}
                         </div>
@@ -185,17 +291,28 @@ export default function History() {
                                 {TIME_SLOT_LABELS[session.timeSlot].emoji} {TIME_SLOT_LABELS[session.timeSlot].label}
                               </span>
                             )}
-                            {isAllDone && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">全部完成</span>}
+                            {isAllDone  && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">全部完成</span>}
                             {hasOverdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">有逾期</span>}
                           </div>
                           <h3 className="font-bold text-foreground text-base leading-tight truncate">{session.scope}</h3>
                         </div>
-                        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-colors shrink-0", isExpanded ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </div>
+                        {!selectMode && (
+                          <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-colors shrink-0", isExpanded ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </div>
+                        )}
                       </div>
 
-                      <ProgressBar value={completedCount} total={totalCount} />
+                      {/* Inline review rounds — always visible */}
+                      <div className="mb-3">
+                        <ReviewDots
+                          reviewDates={session.reviewDates}
+                          completedDates={session.completedDates}
+                          today={today}
+                        />
+                      </div>
+
+                      {totalCount > 0 && <ProgressBar value={completedCount} total={totalCount} />}
 
                       <div className="grid grid-cols-2 gap-2 mt-3">
                         {avgUnderstanding > 0 && (
@@ -224,7 +341,7 @@ export default function History() {
                       </div>
                     </button>
 
-                    {/* Expanded content */}
+                    {/* Expanded: detailed records only */}
                     <AnimatePresence>
                       {isExpanded && (
                         <motion.div
@@ -235,13 +352,11 @@ export default function History() {
                           className="overflow-hidden"
                         >
                           <div className="px-4 pb-4 pt-1 border-t border-border/30">
-                            {/* Edit button */}
                             <Button
                               variant="outline"
                               size="sm"
                               className="w-full mt-3 mb-4 rounded-2xl font-bold border-2 border-primary/30 text-primary hover:bg-primary/5"
                               onClick={() => setEditingSession(session)}
-                              data-testid={`button-edit-${session.id}`}
                             >
                               <Pencil className="w-4 h-4 mr-2" />
                               編輯 / 刪除此計畫
@@ -257,31 +372,6 @@ export default function History() {
                                 {records.map((rec, i) => <RecordRow key={rec.date + i} rec={rec} index={i} />)}
                               </div>
                             )}
-
-                            <div className="mt-4 pt-3 border-t border-border/30">
-                              <p className="text-xs font-bold text-muted-foreground mb-2">複習日程</p>
-                              <div className="space-y-1">
-                                {session.reviewDates.map((d, i) => {
-                                  const done = session.completedDates.includes(d);
-                                  const overdue = !done && d < today;
-                                  return (
-                                    <div key={d} className="flex items-center gap-2">
-                                      <div className={cn(
-                                        "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
-                                        done ? "bg-green-500 text-white" : overdue ? "bg-red-400 text-white" : "bg-muted text-muted-foreground"
-                                      )}>
-                                        {i + 1}
-                                      </div>
-                                      <span className={cn("text-xs font-medium", done ? "line-through text-muted-foreground" : overdue ? "text-red-600 font-bold" : "text-foreground")}>
-                                        {d}
-                                      </span>
-                                      {done && <span className="text-[10px] text-green-600 font-bold">✓ 完成</span>}
-                                      {overdue && <span className="text-[10px] text-red-500 font-bold">逾期</span>}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
                           </div>
                         </motion.div>
                       )}
@@ -293,6 +383,69 @@ export default function History() {
           </div>
         )}
       </div>
+
+      {/* Bulk delete bottom bar */}
+      <AnimatePresence>
+        {selectMode && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="fixed bottom-0 left-0 right-0 z-50 px-6 pb-8 pt-4 bg-background/95 backdrop-blur border-t border-border/40 shadow-lg"
+          >
+            <div className="flex items-center gap-3 max-w-2xl mx-auto">
+              <p className="flex-1 text-sm font-bold text-foreground">
+                已選 <span className="text-primary">{selected.size}</span> 筆
+              </p>
+              <Button
+                variant="ghost"
+                className="font-bold text-muted-foreground"
+                onClick={() => {
+                  if (selected.size === enrichedSessions.length) {
+                    setSelected(new Set());
+                  } else {
+                    setSelected(new Set(enrichedSessions.map(e => e.session.id)));
+                  }
+                }}
+              >
+                {selected.size === enrichedSessions.length ? "取消全選" : "全選"}
+              </Button>
+              <Button
+                className="bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl px-5"
+                disabled={selected.size === 0}
+                onClick={() => setConfirmBulk(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                刪除 {selected.size > 0 ? `(${selected.size})` : ""}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm bulk delete */}
+      <AlertDialog open={confirmBulk} onOpenChange={setConfirmBulk}>
+        <AlertDialogContent className="rounded-3xl mx-4 border-none shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold text-center">確定要刪除嗎？</AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-base leading-relaxed">
+              將刪除選取的 <span className="font-bold text-red-600">{selected.size}</span> 筆學習計畫，刪除後無法復原。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col mt-2">
+            <AlertDialogAction
+              className="w-full h-12 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-bold"
+              onClick={handleBulkDelete}
+            >
+              確定刪除
+            </AlertDialogAction>
+            <AlertDialogCancel className="w-full h-12 rounded-2xl font-bold border-none bg-muted hover:bg-muted/80 mt-0">
+              取消
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <EditSessionSheet
         session={editingSession}
