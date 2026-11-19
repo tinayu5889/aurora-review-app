@@ -40,6 +40,8 @@ export type ReviewSession = {
   completedDates: string[];
   records: ReviewRecord[];
   planCompletedDate?: string;
+  /** 手動調整的每日讀書計畫順序；舊資料可不含此欄位 */
+  sortOrder?: number;
   /** 系列課程欄位 */
   seriesId?: string;
   sessionNumber?: number;
@@ -232,11 +234,21 @@ export function useData() {
     bgSync("kr_subjects", newSubjects);
   };
 
-  const saveSessions = (newSessions: ReviewSession[]) => {
+  const writeSessionsLocally = (newSessions: ReviewSession[]) => {
     setSessions(newSessions);
     localStorage.setItem("kr_sessions", JSON.stringify(newSessions));
     window.dispatchEvent(new Event("kr-sessions-updated"));
+  };
+
+  const saveSessions = (newSessions: ReviewSession[]) => {
+    writeSessionsLocally(newSessions);
     bgSync("kr_sessions", newSessions);
+  };
+
+  const saveSessionsAndSync = async (newSessions: ReviewSession[]) => {
+    writeSessionsLocally(newSessions);
+    const familyId = getFamilyId();
+    if (familyId) await syncTable("kr_sessions", familyId, newSessions);
   };
 
   const saveGoals = (newGoals: Goal[]) => {
@@ -258,6 +270,7 @@ export function useData() {
     excludedPeriods,
     saveSubjects,
     saveSessions,
+    saveSessionsAndSync,
     saveGoals,
     saveExcludedPeriods,
     isLoaded,

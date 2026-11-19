@@ -1,17 +1,18 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { format, addDays, startOfMonth } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { BookOpen, CalendarCheck, CheckCircle2, Circle, Target, Pencil } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { useData, Goal, ReviewSession } from "@/hooks/use-data";
+import { useData, Goal, ReviewSession, TimeSlot, TIME_SLOT_LABELS, TIME_SLOT_ORDER } from "@/hooks/use-data";
 import { EditSessionSheet } from "@/components/edit-session-sheet";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 /* ── Custom DayButton type (avoids fragile DayButtonProps import) ── */
 type DayButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -19,11 +20,20 @@ type DayButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   modifiers: Record<string, boolean>;
 };
 
+const TIME_SLOT_SORT_ORDER: TimeSlot[] = TIME_SLOT_ORDER;
+
 export default function CalendarPage() {
-  const { subjects, sessions, saveSessions, excludedPeriods, goals, saveGoals, isLoaded } = useData();
+  const { subjects, sessions, saveSessions, saveSessionsAndSync, excludedPeriods, goals, saveGoals, isLoaded } = useData();
+  const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [confirmGoal, setConfirmGoal] = useState<Goal | null>(null);
   const [editingSession, setEditingSession] = useState<ReviewSession | null>(null);
+  const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [dropTargetSlot, setDropTargetSlot] = useState<TimeSlot | null>(null);
+  const activeDragRef = useRef<{ sessionId: string; pointerId: number } | null>(null);
+  const saveSessionsRef = useRef(saveSessionsAndSync);
+  saveSessionsRef.current = saveSessionsAndSync;
 
   /* ── Build lookup sets ── */
   const planDaysSet = useMemo(() => {
@@ -158,8 +168,6 @@ export default function CalendarPage() {
   /* ── Selected date data ── */
   const selectedDateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
 
-  const TIME_SLOT_SORT_ORDER = ["morning", "afternoon", "evening", "none"];
-
   const planItems = useMemo(() => {
     if (!selectedDateStr) return [];
     return sessions
@@ -167,7 +175,9 @@ export default function CalendarPage() {
       .map(s => ({ ...s, subject: subjects.find(sub => sub.id === s.subjectId) }))
       .sort((a, b) =>
         TIME_SLOT_SORT_ORDER.indexOf(a.timeSlot ?? "none") -
-        TIME_SLOT_SORT_ORDER.indexOf(b.timeSlot ?? "none")
+          TIME_SLOT_SORT_ORDER.indexOf(b.timeSlot ?? "none") ||
+        (a.sortOrder ?? Number.MAX_SAFE_INTEGER) -
+          (b.sortOrder ?? Number.MAX_SAFE_INTEGER)
       );
   }, [selectedDateStr, sessions, subjects]);
 
@@ -176,10 +186,107 @@ export default function CalendarPage() {
     return (reviewDaysMap.get(selectedDateStr) ?? [])
       .slice()
       .sort((a, b) =>
-        TIME_SLOT_SORT_ORDER.indexOf(a.timeSlot) -
-        TIME_SLOT_SORT_ORDER.indexOf(b.timeSlot)
+        TIME_SLOT_SORT_ORDER.indexOf(a.timeSlot as TimeSlot) -
+        TIME_SLOT_SORT_ORDER.indexOf(b.timeSlot as TimeSlot)
       );
   }, [selectedDateStr, reviewDaysMap]);
+
+  useEffect(() => {
+    if (!draggingSessionId) return;
+
+    const getDropTargets = (x: number, y: number) => {
+      const element = document.elementFromPoint(x, y);
+      return {
+        card: element?.closest<HTMLElement>("[data-plan-drop-id]") ?? null,
+        slot: element?.closest<HTMLElement>("[data-plan-drop-slot]") ?? null,
+      };
+    };
+
+    const clearDrag = () => {
+      activeDragRef.current = null;
+      setDraggingSessionId(null);
+      setDropTargetId(null);
+      setDropTargetSlot(null);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (activeDragRef.current?.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      const { card, slot } = getDropTargets(event.clientX, event.clientY);
+      setDropTargetId(card?.dataset.planDropId ?? null);
+      setDropTargetSlot((slot?.dataset.planDropSlot as TimeSlot | undefined) ?? null);
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const activeDrag = activeDragRef.current;
+      if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+
+      const source = planItems.find(item => item.id === activeDrag.sessionId);
+      const { card, slot } = getDropTargets(event.clientX, event.clientY);
+      const targetId = card?.dataset.planDropId;
+      const target = targetId ? planItems.find(item => item.id === targetId) : undefined;
+      const targetSlot = slot?.dataset.planDropSlot as TimeSlot | undefined;
+
+      if (source && (target || targetSlot) && targetId !== source.id) {
+        const destinationSlot = target?.timeSlot ?? targetSlot ?? "none";
+        const destinationIds = planItems
+          .filter(item => (item.timeSlot ?? "none") === destinationSlot && item.id !== source.id)
+          .map(item => item.id);
+
+        let insertAt = destinationIds.length;
+        if (target) {
+          const targetIndex = destinationIds.indexOf(target.id);
+          if (targetIndex >= 0) {
+            const targetRect = card?.getBoundingClientRect();
+            const insertAfter = targetRect
+              ? event.clientY >= targetRect.top + targetRect.height / 2
+              : false;
+            insertAt = targetIndex + (insertAfter ? 1 : 0);
+          }
+        }
+        destinationIds.splice(insertAt, 0, source.id);
+
+        const positions = new Map<string, { timeSlot: TimeSlot; sortOrder: number }>();
+        for (const timeSlot of TIME_SLOT_SORT_ORDER) {
+          const ids = timeSlot === destinationSlot
+            ? destinationIds
+            : planItems
+                .filter(item => (item.timeSlot ?? "none") === timeSlot && item.id !== source.id)
+                .map(item => item.id);
+          ids.forEach((id, sortOrder) => positions.set(id, { timeSlot, sortOrder }));
+        }
+
+        const updatedSessions = sessions.map(session => {
+          const position = positions.get(session.id);
+          return position
+            ? { ...session, timeSlot: position.timeSlot, sortOrder: position.sortOrder }
+            : session;
+        });
+        void saveSessionsRef.current(updatedSessions)
+          .then(() => toast({ title: "讀書計畫排序已儲存" }))
+          .catch(() => toast({
+            title: "雲端同步失敗",
+            description: "排序已保存在這台裝置，但其他裝置可能尚未更新。",
+            variant: "destructive",
+          }));
+      }
+
+      clearDrag();
+    };
+
+    const handlePointerCancel = (event: PointerEvent) => {
+      if (activeDragRef.current?.pointerId === event.pointerId) clearDrag();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+    };
+  }, [draggingSessionId, planItems, sessions, toast]);
 
   const excludedNote = useMemo(() =>
     selectedDateStr
@@ -296,15 +403,62 @@ export default function CalendarPage() {
                     </div>
                   ) : (
                     <div className="space-y-2">
+                      {draggingSessionId && (
+                        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-dashed border-rose-200 bg-rose-50/50 px-2 py-2">
+                          <span className="mr-1 text-[11px] font-semibold text-muted-foreground">移至時段</span>
+                          {TIME_SLOT_SORT_ORDER.map(slot => (
+                            <span
+                              key={slot}
+                              data-plan-drop-slot={slot}
+                              className={cn(
+                                "rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors",
+                                dropTargetSlot === slot
+                                  ? "border-rose-400 bg-rose-100 text-rose-700"
+                                  : "border-border bg-card text-muted-foreground"
+                              )}
+                            >
+                              {TIME_SLOT_LABELS[slot].label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {planItems.map(item => (
-                        <div key={item.id} className="flex items-center gap-3 p-3 bg-rose-50/60 border border-rose-100 rounded-2xl">
+                        <div
+                          key={item.id}
+                          data-plan-drop-id={item.id}
+                          className={cn(
+                            "flex items-center gap-3 p-3 bg-rose-50/60 border rounded-2xl transition-all",
+                            dropTargetId === item.id && draggingSessionId !== item.id
+                              ? "border-rose-400 ring-2 ring-rose-200"
+                              : "border-rose-100",
+                            draggingSessionId === item.id && "opacity-50 scale-[0.99]"
+                          )}
+                        >
                           <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0", item.subject?.color ?? "bg-muted")}>
                             {item.subject?.emoji}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-muted-foreground">{item.subject?.name}</p>
+                            <p className="text-xs font-bold text-muted-foreground">
+                              {item.subject?.name}
+                              {draggingSessionId && ` · ${TIME_SLOT_LABELS[item.timeSlot ?? "none"].label}`}
+                            </p>
                             <p className="text-sm font-bold text-foreground truncate">{item.scope}</p>
                           </div>
+                          <button
+                            type="button"
+                            onPointerDown={event => {
+                              event.preventDefault();
+                              activeDragRef.current = { sessionId: item.id, pointerId: event.pointerId };
+                              setDraggingSessionId(item.id);
+                              setDropTargetId(null);
+                              setDropTargetSlot(null);
+                            }}
+                            className="flex h-8 w-8 shrink-0 touch-none select-none items-center justify-center rounded-xl text-lg leading-none text-muted-foreground hover:bg-white/80 hover:text-rose-600 active:cursor-grabbing cursor-grab"
+                            aria-label="拖曳調整計畫順序"
+                            title="拖曳調整順序"
+                          >
+                            ⠿
+                          </button>
                           <button
                             onClick={() => setEditingSession(sessions.find(s => s.id === item.id) ?? null)}
                             className="w-8 h-8 rounded-xl bg-white/70 border border-rose-200 flex items-center justify-center shrink-0 hover:bg-white transition-colors active:scale-90"

@@ -261,7 +261,12 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
   const groups = TIME_SLOT_ORDER
     .map(slot => ({
       slot,
-      items: studyPlanItems.filter(({ session }) => (session.timeSlot ?? "none") === slot),
+      items: studyPlanItems
+        .filter(({ session }) => (session.timeSlot ?? "none") === slot)
+        .sort((a, b) =>
+          (a.session.sortOrder ?? Number.MAX_SAFE_INTEGER) -
+          (b.session.sortOrder ?? Number.MAX_SAFE_INTEGER)
+        ),
     }))
     .filter(g => g.items.length > 0);
 

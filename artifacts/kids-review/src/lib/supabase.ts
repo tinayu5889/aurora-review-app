@@ -24,26 +24,29 @@ export async function syncTable<T extends { id: string }>(
   const currentIds = new Set(items.map(i => i.id));
 
   // 1. Get existing IDs from Supabase
-  const { data: existing } = await supabase
+  const { data: existing, error: selectError } = await supabase
     .from(table)
     .select("id")
     .eq("family_id", familyId);
+  if (selectError) throw selectError;
 
   // 2. Delete only rows that no longer exist
   const toDelete = (existing ?? []).map(r => r.id).filter(id => !currentIds.has(id));
   if (toDelete.length > 0) {
-    await supabase
+    const { error: deleteError } = await supabase
       .from(table)
       .delete()
       .eq("family_id", familyId)
       .in("id", toDelete);
+    if (deleteError) throw deleteError;
   }
 
   // 3. Upsert current items
   if (items.length > 0) {
-    await supabase
+    const { error: upsertError } = await supabase
       .from(table)
       .upsert(items.map(item => ({ family_id: familyId, id: item.id, data: item })));
+    if (upsertError) throw upsertError;
   }
 }
 
