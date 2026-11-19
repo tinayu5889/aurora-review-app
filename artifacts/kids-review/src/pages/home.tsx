@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Check, Star, FileText, Pencil, Clock, CalendarCheck, BookOpen, PlusCircle, Circle } from "lucide-react";
 import { useSearch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
-import { useData, ReviewRecord, ReviewSession, LearningType, TimeSlot, TIME_SLOT_LABELS, TIME_SLOT_ORDER } from "@/hooks/use-data";
+import { useData, ReviewRecord, ReviewSession, LearningType, TimeSlot, TIME_SLOT_LABELS } from "@/hooks/use-data";
 import { adjustNextDate } from "@/lib/spaced-repetition";
 import { EditSessionSheet } from "@/components/edit-session-sheet";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ const LEARNING_TYPE_LABELS: Record<LearningType, { emoji: string; label: string 
   reading:         { emoji: "📖", label: "閱讀"   },
   extracurricular: { emoji: "🏃", label: "課外"   },
 };
+
+const DAILY_PLAN_SLOTS: TimeSlot[] = ["morning", "afternoon", "evening"];
 
 type DueItem = {
   sessionId: string;
@@ -255,13 +257,16 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
   onEditClick: (session: ReviewSession) => void;
   onToggleDone: (sessionId: string, isDone: boolean) => void;
 }) {
-  const doneCount = studyPlanItems.filter(({ session }) => session.planCompletedDate === todayStr).length;
+  const displayedItems = studyPlanItems.filter(({ session }) =>
+    DAILY_PLAN_SLOTS.includes(session.timeSlot ?? "none")
+  );
+  const doneCount = displayedItems.filter(({ session }) => session.planCompletedDate === todayStr).length;
 
   /* Group by timeSlot in canonical order, skip empty groups */
-  const groups = TIME_SLOT_ORDER
+  const groups = DAILY_PLAN_SLOTS
     .map(slot => ({
       slot,
-      items: studyPlanItems
+      items: displayedItems
         .filter(({ session }) => (session.timeSlot ?? "none") === slot)
         .sort((a, b) =>
           (a.session.sortOrder ?? Number.MAX_SAFE_INTEGER) -
@@ -277,7 +282,7 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
       <div className="flex items-center gap-3 mb-6">
         <BookOpen className="w-6 h-6 text-violet-500" />
         <h1 className="text-2xl font-bold text-foreground">今日讀書計畫</h1>
-        {studyPlanItems.length > 0 && (
+        {displayedItems.length > 0 && (
           <span className="ml-2 text-sm font-bold text-muted-foreground bg-muted px-3 py-1 rounded-full">
             {doneCount}/{studyPlanItems.length} 完成
           </span>
@@ -287,7 +292,7 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
         </span>
       </div>
 
-      {studyPlanItems.length === 0 ? (
+      {displayedItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center py-20 gap-4">
           <div className="w-24 h-24 rounded-3xl bg-violet-100 flex items-center justify-center">
             <BookOpen className="w-12 h-12 text-violet-400" />
@@ -301,8 +306,8 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
           </Button>
         </div>
       ) : (
-        <div className="mb-6 space-y-5">
-          {doneCount === studyPlanItems.length && studyPlanItems.length > 0 && (
+        <div className="mb-6 max-w-xl space-y-4">
+          {doneCount === displayedItems.length && displayedItems.length > 0 && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -322,7 +327,7 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
                   <span className="text-sm font-bold text-muted-foreground">{slotMeta.label}</span>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2">
                   {items.map(({ session, subject }) => {
                     const delay = (cardIndex++) * 0.05;
                     const isDone = session.planCompletedDate === todayStr;
@@ -333,21 +338,21 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay }}
                         className={cn(
-                          "flex items-center gap-4 border-2 rounded-2xl p-4 transition-all shadow-sm",
+                          "flex items-center gap-3 border-2 rounded-xl px-3 py-2.5 transition-all shadow-sm",
                           isDone
                             ? "bg-green-50 border-green-200"
                             : "bg-card border-violet-100 hover:border-violet-200"
                         )}
                       >
                         <div className={cn(
-                          "w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 shadow-inner transition-opacity",
+                          "w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner transition-opacity",
                           subject?.color || "bg-muted",
                           isDone && "opacity-40"
                         )}>
                           {subject?.emoji}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm font-bold mb-0.5", isDone ? "text-green-600/60" : "text-foreground")}>
+                          <p className={cn("text-xs font-bold mb-0.5", isDone ? "text-green-600/60" : "text-foreground")}>
                             {subject?.name}
                           </p>
                           <p className={cn("text-sm truncate transition-all font-medium", isDone ? "line-through text-muted-foreground" : "text-muted-foreground")}>
@@ -363,15 +368,15 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
                         </div>
                         <button
                           onClick={e => { e.stopPropagation(); onEditClick(session); }}
-                          className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center border-2 border-border/50 bg-card hover:border-violet-300 hover:bg-violet-50 transition-all"
+                          className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center border border-border/50 bg-card hover:border-violet-300 hover:bg-violet-50 transition-all"
                           aria-label="編輯"
                         >
-                          <Pencil className="w-4 h-4 text-muted-foreground" />
+                          <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                         </button>
                         <button
                           onClick={() => onToggleDone(session.id, !isDone)}
                           className={cn(
-                            "w-12 h-12 rounded-xl shrink-0 flex items-center justify-center transition-all duration-200 border-2",
+                            "w-10 h-10 rounded-xl shrink-0 flex items-center justify-center transition-all duration-200 border-2",
                             isDone
                               ? "bg-green-500 border-green-500 scale-105"
                               : "bg-card border-violet-200 hover:border-violet-400 hover:bg-violet-50"
@@ -379,8 +384,8 @@ function StudyPlanSection({ studyPlanItems, navigate, todayStr, onEditClick, onT
                           aria-label={isDone ? "取消完成" : "標記完成"}
                         >
                           {isDone
-                            ? <Check className="w-6 h-6 text-white" strokeWidth={3} />
-                            : <Circle className="w-6 h-6 text-violet-300" />
+                             ? <Check className="w-5 h-5 text-white" strokeWidth={3} />
+                             : <Circle className="w-5 h-5 text-violet-300" />
                           }
                         </button>
                       </motion.div>
